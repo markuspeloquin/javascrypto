@@ -6,3 +6,5 @@ Dependencies are all handled and the order is corrected.  To include all,
 write:
 
     ./build.py all > out.js
+
+Dependency information is recorded in build.py itself.
