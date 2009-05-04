@@ -1,0 +1,8 @@
+Pick and choose the files you want.  If you want PBKDF2 and Tiger, just run
+
+    ./build.py pbkdf2 tiger > out.js
+
+Dependencies are all handled and the order is corrected.  To include all,
+write:
+
+    ./build.py all > out.js
