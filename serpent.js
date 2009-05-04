@@ -232,24 +232,24 @@ Serpent.sbox_1 = function(x,y)
 }
 Serpent.sbox_1_inv = function(x,y)
 {
-        var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
-        t0 = x[0] ^ x[1];
-        t1 = x[2] ^ t0;
-        t2 = x[1] | x[3];
-        y[3] = t1 ^ t2;
-        t3 = x[0] ^ x[3];
-        t4 = x[2] | t3;
-        t5 = x[1] ^ t4;
-        t6 = t1 & t5;
-        y[1] = t3 ^ t6;
-        t7 = t2 ^ t5;
-        t8 = t1 & y[1];
-        t9 = t7 ^ t8;
-        y[0] = ~t9;
-        ta = x[0] ^ t4;
-        tb = t8 ^ ta;
-        tc = y[1] | y[0];
-        y[2] = tb ^ tc;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
+	t0 = x[0] ^ x[1];
+	t1 = x[2] ^ t0;
+	t2 = x[1] | x[3];
+	y[3] = t1 ^ t2;
+	t3 = x[0] ^ x[3];
+	t4 = x[2] | t3;
+	t5 = x[1] ^ t4;
+	t6 = t1 & t5;
+	y[1] = t3 ^ t6;
+	t7 = t2 ^ t5;
+	t8 = t1 & y[1];
+	t9 = t7 ^ t8;
+	y[0] = ~t9;
+	ta = x[0] ^ t4;
+	tb = t8 ^ ta;
+	tc = y[1] | y[0];
+	y[2] = tb ^ tc;
 }
 Serpent.sbox_2 = function(x,y)
 {
