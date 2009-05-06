@@ -16,6 +16,7 @@ DEP['long'] = []
 DEP['pbkdf2'] = ['buffer']
 DEP['serpent'] = ['buffer', 'cipher']
 DEP['tiger'] = ['buffer', 'hash', 'long']
+DEP['whirlpool'] = ['buffer', 'hash', 'long']
 
 def combine(req):
 	'''Give mapping of NAME -> DEPENDENTS.'''

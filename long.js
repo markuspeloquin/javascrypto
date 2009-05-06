@@ -52,6 +52,14 @@ Long.prototype.toString = function()
 	}
 	return res;
 }
+Long.prototype.get8 = function(n)
+{
+	return (this.n[(n>>>1) ^ 3] >> ((n & 1) << 3)) & 0xff;
+}
+Long.prototype.get16 = function(n)
+{
+	return this.n[n ^ 3];
+}
 /** Return sum of two Long */
 Long.add = function(a,b)
 {
@@ -78,6 +86,17 @@ Long.xor = function(a,b)
 	for (var i = 0; i < 4; i++)
 		t.n[i] = a.n[i] ^ b.n[i];
 	return t;
+}
+Long.xor_list = function(lst)
+{
+	switch (lst.length) {
+	case 0: return new Long;
+	case 1: return new Long(lst[0]);
+	}
+	var res = lst[0];
+	for (var i = 1; i < lst.length; i++)
+		res = Long.xor(res, lst[i]);
+	return res;
 }
 /** Return AND of two Long */
 Long.and = function(a,b)

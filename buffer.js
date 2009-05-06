@@ -62,6 +62,28 @@ as_hex: function(buf, off, sz)
 	return res;
 },
 
+from_ascii: function(str)
+{
+	var bytes = [];
+	var i, j;
+	for (i = 0; i < str.length; i++) {
+		var c = str.charCodeAt(i);
+		var chbytes = [];
+		chbytes.push(c & 0xff);
+		c >>>= 8;
+		while (c) {
+			chbytes.push(c & 0xff);
+			c >>>= 8;
+		}
+		for (j = chbytes.length-1; j > -1; j--)
+			bytes.push(chbytes[j]);
+	}
+	var res = Buffer.zeros32((bytes.length + 3)>>>2);
+	for (i = 0; i < bytes.length; i++)
+		Buffer.set32(res, i, bytes[i]);
+	return res;
+},
+
 /** Copy one buffer to another, keeping byte order (BE to BE)
  * \param[out] dst	Destination
  * \param[in] dstoff	Destination byte offset

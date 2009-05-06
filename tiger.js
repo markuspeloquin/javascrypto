@@ -629,24 +629,16 @@ Tiger.t4 = [
 	new Long(0xC83223F1,0x720AEF96),new Long(0xC3A0396F,0x7363A51F)
 ];
 
-Tiger.by7 = function(x) { return x.n[0]>>8 }
-Tiger.by6 = function(x) { return x.n[0]&0xff }
-Tiger.by5 = function(x) { return x.n[1]>>8 }
-Tiger.by4 = function(x) { return x.n[1]&0xff }
-Tiger.by3 = function(x) { return x.n[2]>>8 }
-Tiger.by2 = function(x) { return x.n[2]&0xff }
-Tiger.by1 = function(x) { return x.n[3]>>8 }
-Tiger.by0 = function(x) { return x.n[3]&0xff }
 Tiger.round = function(a,b,c,x,m)
 {
 	var a0, b0, c0;
 	c0 = Long.xor(c,x);
-	a0 = Long.subtract(a,Long.xor(
-		Long.xor(Tiger.t1[Tiger.by0(c0)],Tiger.t2[Tiger.by2(c0)]),
-		Long.xor(Tiger.t3[Tiger.by4(c0)],Tiger.t4[Tiger.by6(c0)])));
-	b0 = Long.add(b,Long.xor(
-		Long.xor(Tiger.t4[Tiger.by1(c0)],Tiger.t3[Tiger.by3(c0)]),
-		Long.xor(Tiger.t2[Tiger.by5(c0)],Tiger.t1[Tiger.by7(c0)])));
+	a0 = Long.subtract(a,Long.xor_list([
+		Tiger.t1[c0.get8(0)],Tiger.t2[c0.get8(2)],
+		Tiger.t3[c0.get8(4)],Tiger.t4[c0.get8(6)]]));
+	b0 = Long.add(b,Long.xor_list([
+		Tiger.t4[c0.get8(1)],Tiger.t3[c0.get8(3)],
+		Tiger.t2[c0.get8(5)],Tiger.t1[c0.get8(7)]]));
 	b0 = Long.multiply(b0,m);
 	a.n = a0.n;
 	b.n = b0.n;
