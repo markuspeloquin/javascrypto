@@ -107,5 +107,4 @@ if len(sys.argv) == 2 and sys.argv[1] == 'all':
 	order = get_order(DEP.keys())
 else:
 	order = get_order(sys.argv[1:])
-print order
 output_files(sys.stdout, [ x + '.js' for x in order ])
