@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import Queue
+import heapq
 import os
 import sys
 
@@ -13,7 +13,7 @@ DEP['crypt'] = []
 DEP['hash'] = []
 DEP['hmac'] = ['buffer']
 DEP['long'] = []
-DEP['pbkdf2'] = ['buffer']
+DEP['pbkdf2'] = ['buffer', 'hmac']
 DEP['serpent'] = ['buffer', 'cipher']
 DEP['tiger'] = ['buffer', 'hash', 'long']
 DEP['whirlpool'] = ['buffer', 'hash', 'long']
@@ -46,20 +46,21 @@ def get_order(names):
 
 	counts = combine(names)
 
-	# alas, Python has no Fibonacci queue type, which would have been
-	# better; instead of decreasing keys, I add a new value to the
-	# queue with the decreased key; also, there's a definite assumption
-	# that 2*len(counts) is enough space
+	# keys cannot be decreased, so instead I add a new value to the
+	# queue with the decreased key, and subsequent entries of the value
+	# are ignored; also, there's a definite assumption that
+	# 2*len(counts) is enough space
 
-	queue = Queue.PriorityQueue(2 * len(counts))
+	queue = []
 	for (key, value) in counts.iteritems():
-		queue.put((value,key))
+		queue.append((value,key))
+	heapq.heapify(queue)
 
 	order = []
 	used = {}
-	while not queue.empty():
+	while queue:
 		# get min
-		(_, name) = queue.get()
+		(_, name) = heapq.heappop(queue)
 		if used.has_key(name):
 			continue
 
@@ -70,7 +71,7 @@ def get_order(names):
 		for d in DEP[name]:
 			# 'decrease' key of each dependency
 			counts[d] -= 1
-			queue.put((counts[d], d))
+			heapq.heappush(queue, (counts[d], d))
 	order.reverse()
 	return order
 
