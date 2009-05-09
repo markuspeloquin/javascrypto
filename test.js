@@ -41,7 +41,6 @@ var digits = '0123456789';
 // TIGER TESTS
 
 var tiger_tests = [];
-/*
 tiger_tests.push({
     msg: '',
     hash: '3293AC630C13F0245F92BBB1766E16167A4E58492DDE73F3' });
@@ -69,7 +68,6 @@ tiger_tests.push({
 	for (var i = 0; i < 8; i++) res += '1234567890';
 	return res; }(),
     hash: '1C14795529FD9F207A958F84C52F11E887FA0CABDFD91BFD' });
-*/
 // this test takes a very long time
 /*
 tiger_tests.push({
