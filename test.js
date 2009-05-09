@@ -41,6 +41,7 @@ var digits = '0123456789';
 // TIGER TESTS
 
 var tiger_tests = [];
+/*
 tiger_tests.push({
     msg: '',
     hash: '3293AC630C13F0245F92BBB1766E16167A4E58492DDE73F3' });
@@ -68,6 +69,7 @@ tiger_tests.push({
 	for (var i = 0; i < 8; i++) res += '1234567890';
 	return res; }(),
     hash: '1C14795529FD9F207A958F84C52F11E887FA0CABDFD91BFD' });
+*/
 // this test takes a very long time
 /*
 tiger_tests.push({
@@ -89,11 +91,6 @@ wp_tests.push({
     hash:
 	'8ACA2602792AEC6F11A67206531FB7D7F0DFF59413145E6973C45001D0087B42' +
         'D11BC645413AEFF63A42391A39145A591A92200D560195E53B478584FDAE231A' });
-/*
-wp_tests.push({
-    msg: '',
-    hash: '' });
-*/
 wp_tests.push({
     msg: 'abc',
     hash:
@@ -127,7 +124,7 @@ wp_tests.push({
     hash:
 	'2A987EA40F917061F5D6F0A0E4644F488A7A5A52DEEE656207C562F988E95C69' +
         '16BDC8031BC5BE1B7B947639FE050B56939BAAA0ADFF9AE6745B7B181C3BE3FD' });
-// this test takes a very long time
+// this test takes a very long time (almost 2min at 1.73GHz)
 /*
 wp_tests.push({
     msg: function(){
@@ -161,8 +158,9 @@ function run_tiger_tests(hashfn, tests, start_index)
 
 function run_whirlpool_tests(hashfn, tests, start_index)
 {
-	if (start_index >= tests.length)
+	if (start_index >= tests.length) {
 		return;
+	}
 
 	run_test('whirlpool', start_index + 1, hashfn,
 	    tests[start_index].msg, tests[start_index].hash);
