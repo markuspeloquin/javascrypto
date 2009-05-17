@@ -55,14 +55,83 @@ as_hex: function(buf, off, sz)
 	}
 	var res = '';
 	for (var i = 0; i < sz; i++) {
-		var n = get(buf, i).toString(16);
+		var n = get(buf, i + off).toString(16);
 		if (n.length == 1) res += '0' + n;
 		else res += n;
 	}
 	return res;
 },
 
-from_ascii: function(str)
+b64_val_to_char: function(n)
+{
+	if (n < 26) n += 'A'.charCodeAt(0);
+	else if (n < 52) n += 'a'.charCodeAt(0) - 26;
+	else if (n < 62) n += '0'.charCodeAt(0) - 52;
+	else if (n < 63) return '+';
+	else return '/';
+	return String.fromCharCode(n);
+},
+
+/** Convert a buffer to a base64 string.
+ *
+ * If two arguments are given, the second is taken as 'sz'.
+ * \param buf	The buffer of int[]
+ * \param off	[optional] Start offset in bytes
+ * \param sz	[optional] Number of bytes to copy
+ * \return	Base64 string.
+ */
+as_base64: function(buf, off, sz)
+{
+	var type = this.type(buf);
+	var shift = type == this.BUF32 ? 2 : 3;
+	var get = type == this.BUF32 ? this.get32 : this.get64;
+	switch (arguments.length) {
+	case 1:
+		off = 0;
+		sz = buf.length << shift;
+		break;
+	case 2:
+		sz = off;
+		off = 0;
+	}
+	var res = '';
+	var left = sz % 3;
+	var blocks = (sz-left) / 3;
+	var n;
+	var i;
+	var sp;
+	for (var b = 0; b < blocks; b++) {
+		n = (get(buf, 3*b + off) << 16) |
+		    (get(buf, 3*b + off + 1) << 8) |
+		    get(buf, 3*b + off + 2);
+		sp = [n>>18, (n>>12)&0x3f, (n>>6)&0x3f, n&0x3f];
+		for (i = 0; i < 4; i++)
+			res += Buffer.b64_val_to_char(sp[i]);
+	}
+	switch (left) {
+	case 2:
+		n = (get(buf, 3*blocks + off) << 16) |
+		    (get(buf, 3*blocks + off + 1) << 8);
+		sp = [n>>18, (n>>12)&0x3f, (n>>6)&0x3f];
+		for (i = 0; i < 3; i++)
+			res += Buffer.b64_val_to_char(sp[i]);
+		res += '=';
+		break;
+	case 1:
+		n = (get(buf, 3*blocks + off) << 16);
+		sp = [n>>18, (n>>12)&0x3f];
+		for (i = 0; i < 2; i++)
+			res += Buffer.b64_val_to_char(sp[i]);
+		res += '==';
+	}
+	return res;
+},
+
+/** Convert a hex string to type int[].
+ * \param str	Hex string
+ * \return	The buffer as an array of int.
+ */
+from_hex: function(str)
 {
 	var bytes = [];
 	var i, j;
