@@ -4,7 +4,7 @@
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
  * 
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
  * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
@@ -24,13 +24,13 @@ Cipher.prototype = {};
  * \param[out] ciphertext	Encrypted data
  */
 Cipher.prototype.encrypt = function(plaintext, ciphertext)
-{ throw "Cipher.encrypt() not overloaded" }
+{ throw 'Cipher.encrypt() not overloaded' }
 /** Decrypt a block of data
  * \param[in] ciphertext	Data to decrypt
  * \param[out] plaintext	Decrypted data
  */
 Cipher.prototype.decrypt = function(ciphertext, plaintext)
-{ throw "Cipher.decrypt() not overloaded" }
+{ throw 'Cipher.decrypt() not overloaded' }
 /** Get the block size */
 Cipher.prototype.block_size = function()
 { return this._block_size }

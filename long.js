@@ -4,7 +4,7 @@
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
  * 
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
  * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
@@ -69,7 +69,7 @@ Long.add = function(a,b)
 	for (var i = 3; i > -1; i--) {
 		n.n[i] = a.n[i] + b.n[i] + carry;
 		if (i)
-			carry = n.n[i] >> 16;
+			carry = n.n[i] >>> 16;
 		n.n[i] &= 0xffff;
 	}
 	return n;

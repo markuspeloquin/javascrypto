@@ -4,7 +4,7 @@
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
  * 
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
  * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
@@ -20,21 +20,21 @@ Hash = function()
 Hash.prototype = {};
 /** Initialize the hash function */
 Hash.prototype.init = function()
-{ throw "Hash.init() not overloaded" }
+{ throw 'Hash.init() not overloaded' }
 /** Add data to the computation 
  * \param buf	The data
  * \param sz	The size of buf in bytes
  */
 Hash.prototype.update = function(buf, sz)
-{ throw "Hash.update() not overloaded" }
+{ throw 'Hash.update() not overloaded' }
 /** End the hash computation
  * \return	The digest
  */
 Hash.prototype.end = function()
-{ throw "Hash.update() not overloaded" }
+{ throw 'Hash.update() not overloaded' }
 /** Get the size of the digest in bytes */
 Hash.prototype.digest_size = function()
-{ throw "Hash.digest_size() not overloaded" }
+{ throw 'Hash.digest_size() not overloaded' }
 /** Get the size of the blocks in bytes */
 Hash.prototype.block_size = function()
-{ throw "Hash.block_size() not overloaded" }
+{ throw 'Hash.block_size() not overloaded' }
