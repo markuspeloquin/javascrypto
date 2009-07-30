@@ -6,7 +6,7 @@ function str_reverse(str)
 	return res;
 }
 
-function print_msg(str)
+function msg_print(str)
 {
 	var container = document.getElementById('status');
 	if (container.firstChild) {
@@ -15,6 +15,13 @@ function print_msg(str)
 	}
 	var txt = document.createTextNode(str);
 	container.appendChild(txt);
+}
+
+function msg_clear()
+{
+	var container = document.getElementById('status');
+	while (container.firstChild)
+		container.removeChild(container.firstChild);
 }
 
 function run_test(groupname, testnum, hashfn, msg, hash)
@@ -32,138 +39,242 @@ function run_test(groupname, testnum, hashfn, msg, hash)
 		msg += 'PASS';
 	else
 		msg += 'FAIL (got ' + digest_hex + ')';
-	print_msg(msg);
+	msg_print(msg);
 }
 
-var alphabet = 'abcdefghijklmnopqrstuvwxyz';
-var digits = '0123456789';
-
-// TIGER TESTS
-
-var tiger_tests = [];
-tiger_tests.push({
-    msg: '',
-    hash: '3293AC630C13F0245F92BBB1766E16167A4E58492DDE73F3' });
-tiger_tests.push({
-    msg: 'a',
-    hash: '77BEFBEF2E7EF8AB2EC8F93BF587A7FC613E247F5F247809' });
-tiger_tests.push({
-    msg: 'abc',
-    hash: '2AAB1484E8C158F2BFB8C5FF41B57A525129131C957B5F93' });
-tiger_tests.push({
-    msg: 'message digest',
-    hash: 'D981F8CB78201A950DCF3048751E441C517FCA1AA55A29F6' });
-tiger_tests.push({
-    msg: alphabet,
-    hash: '1714A472EEE57D30040412BFCC55032A0B11602FF37BEEE9'});
-tiger_tests.push({
-    msg: 'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq',
-    hash: '0F7BF9A19B9C58F2B7610DF7E84F0AC3A71C631E7B53F78E' });
-tiger_tests.push({
-    msg: (alphabet.toUpperCase() + alphabet + digits),
-    hash: '8DCEA680A17583EE502BA38A3C368651890FFBCCDC49A8CC' });
-tiger_tests.push({
-    msg: function(){
-	var res = '';
-	for (var i = 0; i < 8; i++) res += '1234567890';
-	return res; }(),
-    hash: '1C14795529FD9F207A958F84C52F11E887FA0CABDFD91BFD' });
-// this test takes a very long time
-/*
-tiger_tests.push({
-    msg: function(){
-	var res = '';
-	for (var i = 0; i < 1000000; i++) res += 'a';
-	return res; }(),
-    hash: '6DB0E2729CBEAD93D715C6A7D36302E9B3CEE0D2BC314B41' });
-*/
-
-var wp_tests = [];
-wp_tests.push({
-    msg: '',
-    hash:
-	'19FA61D75522A4669B44E39C1D2E1726C530232130D407F89AFEE0964997F7A7' +
-	'3E83BE698B288FEBCF88E3E03C4F0757EA8964E59B63D93708B138CC42A66EB3' });
-wp_tests.push({
-    msg: 'a',
-    hash:
-	'8ACA2602792AEC6F11A67206531FB7D7F0DFF59413145E6973C45001D0087B42' +
-	'D11BC645413AEFF63A42391A39145A591A92200D560195E53B478584FDAE231A' });
-wp_tests.push({
-    msg: 'abc',
-    hash:
-	'4E2448A4C6F486BB16B6562C73B4020BF3043E3A731BCE721AE1B303D97E6D4C' +
-	'7181EEBDB6C57E277D0E34957114CBD6C797FC9D95D8B582D225292076D4EEF5' });
-wp_tests.push({
-    msg: 'message digest',
-    hash:
-	'378C84A4126E2DC6E56DCC7458377AAC838D00032230F53CE1F5700C0FFB4D3B' +
-	'8421557659EF55C106B4B52AC5A4AAA692ED920052838F3362E86DBD37A8903E' });
-wp_tests.push({
-    msg: alphabet,
-    hash:
-	'F1D754662636FFE92C82EBB9212A484A8D38631EAD4238F5442EE13B8054E41B' +
-	'08BF2A9251C30B6A0B8AAE86177AB4A6F68F673E7207865D5D9819A3DBA4EB3B' });
-wp_tests.push({
-    msg: (alphabet.toUpperCase() + alphabet + digits),
-    hash:
-	'DC37E008CF9EE69BF11F00ED9ABA26901DD7C28CDEC066CC6AF42E40F82F3A1E' +
-	'08EBA26629129D8FB7CB57211B9281A65517CC879D7B962142C65F5A7AF01467' });
-wp_tests.push({
-    msg: function(){
-	var res = '';
-	for (var i = 0; i < 8; i++) res += '1234567890';
-	return res; }(),
-    hash:
-	'466EF18BABB0154D25B9D38A6414F5C08784372BCCB204D6549C4AFADB601429' +
-	'4D5BD8DF2A6C44E538CD047B2681A51A2C60481E88C5A20B2C2A80CF3A9A083B' });
-wp_tests.push({
-    msg: 'abcdbcdecdefdefgefghfghighijhijk',
-    hash:
-	'2A987EA40F917061F5D6F0A0E4644F488A7A5A52DEEE656207C562F988E95C69' +
-	'16BDC8031BC5BE1B7B947639FE050B56939BAAA0ADFF9AE6745B7B181C3BE3FD' });
-// this test takes a very long time (almost 2min at 1.73GHz)
-/*
-wp_tests.push({
-    msg: function(){
-	var res = '';
-	for (var i = 0; i < 1000000; i++) res += 'a';
-	return res; }(),
-    hash:
-	'0C99005BEB57EFF50A7CF005560DDF5D29057FD86B20BFD62DECA0F1CCEA4AF5' +
-	'1FC15490EDDC47AF32BB2B66C34FF9AD8C6008AD677F77126953B226E4ED8B01' });
-*/
-
-onload = function()
+function checkbox_value(id)
 {
-	run_tiger_tests(new Tiger, tiger_tests, 0);
+	return document.getElementById(id).checked;
 }
 
-function run_tiger_tests(hashfn, tests, start_index)
+function start_tests()
 {
-	if (start_index >= tests.length) {
-		run_whirlpool_tests(new Whirlpool, wp_tests, 0);
+	if (tests_running) {
+		tests_stop = true;
+		setTimeout(start_tests, 0);
 		return;
 	}
 
-	run_test('tiger', start_index + 1, hashfn,
-	    tests[start_index].msg, tests[start_index].hash);
+	var alphabet = 'abcdefghijklmnopqrstuvwxyz';
+	var digits = '0123456789';
+	var tests = [];
 
-	// tail recurse, let status update
-	setTimeout(function() { run_tiger_tests(hashfn,
-	    tests, start_index + 1) }, 0);
+	var run_tiger = checkbox_value('run_tiger');
+	var run_whirlpool = checkbox_value('run_whirlpool');
+	var run_longtests = checkbox_value('run_longtests');
+
+	var tiger;
+	var whirlpool;
+	if (run_tiger) tiger = new Tiger;
+	if (run_whirlpool) whirlpool = new Whirlpool;
+
+	if (run_tiger) {
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 1,
+		    msg: '',
+		    hash: '3293AC630C13F0245F92BBB1766E16167A4E58492DDE73F3'
+		});
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 2,
+		    msg: 'a',
+		    hash: '77BEFBEF2E7EF8AB2EC8F93BF587A7FC613E247F5F247809'
+		});
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 3,
+		    msg: 'abc',
+		    hash: '2AAB1484E8C158F2BFB8C5FF41B57A525129131C957B5F93'
+		});
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 4,
+		    msg: 'message digest',
+		    hash: 'D981F8CB78201A950DCF3048751E441C517FCA1AA55A29F6'
+		});
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 5,
+		    msg: alphabet,
+		    hash: '1714A472EEE57D30040412BFCC55032A0B11602FF37BEEE9'
+		});
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 6,
+		    msg:
+			'abcdbcdecdefdefgefghfghighij' +
+			'hijkijkljklmklmnlmnomnopnopq',
+		    hash: '0F7BF9A19B9C58F2B7610DF7E84F0AC3A71C631E7B53F78E'
+		});
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 7,
+		    msg: (alphabet.toUpperCase() + alphabet + digits),
+		    hash: '8DCEA680A17583EE502BA38A3C368651890FFBCCDC49A8CC'
+		});
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 8,
+		    msg: function(){
+			var res = '';
+			for (var i = 0; i < 8; i++) res += '1234567890';
+			return res; }(),
+		    hash: '1C14795529FD9F207A958F84C52F11E887FA0CABDFD91BFD'
+		});
+	}
+	if (run_tiger && run_longtests)
+		tests.push({
+		    fn: tiger,
+		    group: 'tiger',
+		    testnum: 9,
+		    msg: function(){
+			var res = '';
+			for (var i = 0; i < 1000000; i++) res += 'a';
+			return res; }(),
+		    hash: '6DB0E2729CBEAD93D715C6A7D36302E9B3CEE0D2BC314B41',
+		    longtest: true
+		});
+	if (run_whirlpool) {
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 1,
+		    msg: '',
+		    hash:
+			'19FA61D75522A4669B44E39C1D2E1726' +
+			'C530232130D407F89AFEE0964997F7A7' +
+			'3E83BE698B288FEBCF88E3E03C4F0757' +
+			'EA8964E59B63D93708B138CC42A66EB3'
+		});
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 2,
+		    msg: 'a',
+		    hash:
+			'8ACA2602792AEC6F11A67206531FB7D7' +
+			'F0DFF59413145E6973C45001D0087B42' +
+			'D11BC645413AEFF63A42391A39145A59' +
+			'1A92200D560195E53B478584FDAE231A'
+		});
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 3,
+		    msg: 'abc',
+		    hash:
+			'4E2448A4C6F486BB16B6562C73B4020B' +
+			'F3043E3A731BCE721AE1B303D97E6D4C' +
+			'7181EEBDB6C57E277D0E34957114CBD6' +
+			'C797FC9D95D8B582D225292076D4EEF5'
+		});
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 4,
+		    msg: 'message digest',
+		    hash:
+			'378C84A4126E2DC6E56DCC7458377AAC' +
+			'838D00032230F53CE1F5700C0FFB4D3B' +
+			'8421557659EF55C106B4B52AC5A4AAA6' +
+			'92ED920052838F3362E86DBD37A8903E'
+		});
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 5,
+		    msg: alphabet,
+		    hash:
+			'F1D754662636FFE92C82EBB9212A484A' +
+			'8D38631EAD4238F5442EE13B8054E41B' +
+			'08BF2A9251C30B6A0B8AAE86177AB4A6' +
+			'F68F673E7207865D5D9819A3DBA4EB3B'
+		});
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 6,
+		    msg: (alphabet.toUpperCase() + alphabet + digits),
+		    hash:
+			'DC37E008CF9EE69BF11F00ED9ABA2690' +
+			'1DD7C28CDEC066CC6AF42E40F82F3A1E' +
+			'08EBA26629129D8FB7CB57211B9281A6' +
+			'5517CC879D7B962142C65F5A7AF01467'
+		});
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 7,
+		    msg: function(){
+			var res = '';
+			for (var i = 0; i < 8; i++) res += '1234567890';
+			return res; }(),
+		    hash:
+			'466EF18BABB0154D25B9D38A6414F5C0' +
+			'8784372BCCB204D6549C4AFADB601429' +
+			'4D5BD8DF2A6C44E538CD047B2681A51A' +
+			'2C60481E88C5A20B2C2A80CF3A9A083B'
+		});
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 8,
+		    msg: 'abcdbcdecdefdefgefghfghighijhijk',
+		    hash:
+			'2A987EA40F917061F5D6F0A0E4644F48' +
+			'8A7A5A52DEEE656207C562F988E95C69' +
+			'16BDC8031BC5BE1B7B947639FE050B56' +
+			'939BAAA0ADFF9AE6745B7B181C3BE3FD'
+		});
+	}
+	if (run_whirlpool && run_longtests)
+		tests.push({
+		    fn: whirlpool,
+		    group: 'whirlpool',
+		    testnum: 9,
+		    msg: function(){
+			var res = '';
+			for (var i = 0; i < 1000000; i++) res += 'a';
+			return res; }(),
+		    hash:
+			'0C99005BEB57EFF50A7CF005560DDF5D' +
+			'29057FD86B20BFD62DECA0F1CCEA4AF5' +
+			'1FC15490EDDC47AF32BB2B66C34FF9AD' +
+			'8C6008AD677F77126953B226E4ED8B01',
+		    longtest: true
+		});
+
+	tests_running = true;
+	msg_clear();
+	run_tests(tests, 0);
 }
 
-function run_whirlpool_tests(hashfn, tests, start_index)
+function run_tests(tests, start_index)
 {
-	if (start_index >= tests.length) {
+	if (tests_stop || start_index == tests.length) {
+		tests_stop = false;
+		tests_running = false;
+		msg_print('all stop');
 		return;
 	}
 
-	run_test('whirlpool', start_index + 1, hashfn,
-	    tests[start_index].msg, tests[start_index].hash);
+	var test = tests[start_index];
+	run_test(test.group, test.testnum, test.fn, test.msg, test.hash);
 
 	// tail recurse, let status update
-	setTimeout(function() { run_whirlpool_tests(hashfn,
-	    tests, start_index + 1) }, 0);
+	setTimeout(function() {
+		run_tests(tests, start_index + 1);
+	}, 0);
 }
+
+var tests_running = false;
+var tests_stop = false;
