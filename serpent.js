@@ -100,14 +100,14 @@ Serpent.prototype.encrypt = function(plaintext, ciphertext)
 	ciphertext[0] = 0;
 	Buffer.copy_le_be(ciphertext, 0, y, 0, Serpent.BLOCK);
 }
-Serpent.prototype.decrypt = function(plaintext, ciphertext)
+Serpent.prototype.decrypt = function(ciphertext, plaintext)
 {
 	var x = [0,0,0,0];
 	var y = [0,0,0,0];
 	var i;
-	Buffer.copy_be_le(x, 0, plaintext, 0, Serpent.BLOCK);
+	Buffer.copy_be_le(x, 0, ciphertext, 0, Serpent.BLOCK);
 	Serpent.keying(x,this.subkeys[32]);
-	Serpent.sbox_7(x,y);
+	Serpent.sbox_7_inv(x,y);
 	Serpent.keying(y,this.subkeys[31]);
 	for (i = 30; i > -1; i--) {
 		Serpent.transform_inv(y,x);
@@ -121,10 +121,10 @@ Serpent.prototype.decrypt = function(plaintext, ciphertext)
 		case 6: Serpent.sbox_6_inv(x,y); break;
 		case 7: Serpent.sbox_7_inv(x,y);
 		}
-		Serpent.keying(x,this.subkeys[i]);
+		Serpent.keying(y,this.subkeys[i]);
 	}
 	plaintext[0] = 0;
-	Buffer.copy_le_be(ciphertext, 0, y, 0, Serpent.BLOCK);
+	Buffer.copy_le_be(plaintext, 0, y, 0, Serpent.BLOCK);
 }
 Serpent.PHI = 0x9e3779b9;
 Serpent.ROL = function(x,n)
@@ -166,176 +166,151 @@ Serpent.keying = function(x,subkey)
 }
 Serpent.sbox_0 = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td;
-	t0 = x[1] ^ x[2];
-	t1 = x[0] | x[3];
-	y[3] = t0 ^ t1;
-	t2 = x[0] ^ x[1];
-	t3 = x[1] | x[2];
-	t4 = t2 & t3;
-	t5 = x[2] | y[3];
-	t6 = x[3] & t5;
-	y[2] = t4 ^ t6;
-	t7 = x[0] ^ x[3];
-	t8 = t3 ^ t7;
-	t9 = t4 & y[2];
-	ta = t8 ^ t9;
-	y[0] = ~ta;
-	tb = x[0] ^ t0;
-	tc = y[0] ^ tb;
-	td = x[1] | t7;
-	y[1] = tc ^ td;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
+	t0 = x[0] | x[3];
+	t1 = x[1] ^ t0;
+	y[3] = x[2] ^ t1;
+	t2 = x[0] ^ x[3];
+	t3 = x[2] ^ t2;
+	t4 = x[1] & t2;
+	t5 = x[0] ^ t4;
+	t6 = t3 & t5;
+	y[2] = t1 ^ t6;
+	t7 = t3 ^ t5;
+	t8 = y[3] & t7;
+	t9 = t3 ^ t8;
+	y[1] = ~t9;
+	y[0] = t7 ^ y[1];
 }
 Serpent.sbox_0_inv = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td;
-	t0 = x[2] ^ x[3];
-	t1 = x[0] | x[1];
-	t2 = t0 ^ t1;
-	y[2] = ~t2;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
+	t0 = x[0] | x[1];
+	t1 = x[2] ^ t0;
+	t2 = ~t1;
+	y[2] = x[3] ^ t2;
 	t3 = x[0] ^ x[1];
-	t4 = x[2] ^ t3;
-	t5 = x[0] & t0;
-	t6 = x[2] | t2;
-	t7 = t4 & t6;
-	y[1] = t5 ^ t7;
-	t8 = x[1] ^ t2;
-	t9 = x[3] ^ y[2];
-	ta = t0 ^ t7;
-	tb = t8 | t9;
-	y[3] = ta ^ tb;
-	tc = t8 ^ y[3];
-	td = x[3] & t3;
-	y[0] = tc ^ td;
+	t4 = y[2] ^ t3;
+	t5 = x[3] | t3;
+	t6 = x[0] ^ t5;
+	t7 = t2 & t6;
+	y[0] = t4 ^ t7;
+	t8 = t1 ^ y[0];
+	y[3] = t6 ^ t8;
+	t9 = y[0] | y[3];
+	y[1] = t2 ^ t9;
 }
 Serpent.sbox_1 = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td;
-	t0 = x[2] ^ x[3];
-	t1 = ~x[1];
-	t2 = x[0] | t1;
-	y[2] = t0 ^ t2;
-	t3 = x[0] ^ x[1];
-	t4 = x[2] ^ t3;
-	t5 = x[3] & t0;
-	t6 = x[1] | y[2];
-	t7 = t4 | t5;
-	y[0] = t6 ^ t7;
-	t8 = x[0] ^ x[3];
-	t9 = y[2] ^ t3;
-	ta = x[1] | t8;
-	tb = y[0] | t9;
-	y[3] = ta ^ tb;
-	tc = x[2] ^ tb;
-	td = x[3] & t8;
-	y[1] = tc ^ td;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
+	t0 = ~x[1];
+	t1 = x[0] | t0;
+	t2 = x[2] ^ t1;
+	y[2] = x[3] ^ t2;
+	t3 = x[0] ^ t0;
+	t4 = y[2] ^ t3;
+	t5 = x[3] | t3;
+	t6 = x[1] ^ t5;
+	t7 = t2 & t6;
+	y[3] = t4 ^ t7;
+	t8 = t2 ^ t6;
+	y[1] = y[3] ^ t8;
+	t9 = t4 & t8;
+	y[0] = t2 ^ t9;
 }
 Serpent.sbox_1_inv = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
-	t0 = x[0] ^ x[1];
-	t1 = x[2] ^ t0;
-	t2 = x[1] | x[3];
-	y[3] = t1 ^ t2;
-	t3 = x[0] ^ x[3];
-	t4 = x[2] | t3;
-	t5 = x[1] ^ t4;
-	t6 = t1 & t5;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
+	t0 = x[1] & x[3];
+	t1 = x[0] ^ t0;
+	t2 = x[3] ^ t1;
+	y[3] = x[2] ^ t2;
+	t3 = x[1] ^ t1;
+	t4 = x[2] & t3;
+	t5 = t1 ^ t4;
+	t6 = y[3] | t5;
 	y[1] = t3 ^ t6;
-	t7 = t2 ^ t5;
-	t8 = t1 & y[1];
-	t9 = t7 ^ t8;
-	y[0] = ~t9;
-	ta = x[0] ^ t4;
-	tb = t8 ^ ta;
-	tc = y[1] | y[0];
-	y[2] = tb ^ tc;
+	t7 = ~y[1];
+	t8 = y[3] | t7;
+	y[0] = t5 ^ t8;
+	t9 = t7 | y[0];
+	y[2] = t2 ^ t9;
 }
 Serpent.sbox_2 = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
-	t0 = x[0] ^ x[1];
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8;
+	t0 = x[0] & x[2];
 	t1 = x[3] ^ t0;
-	t2 = x[0] | x[2];
-	y[0] = t1 ^ t2;
-	t3 = x[0] ^ x[2];
-	t4 = x[2] ^ y[0];
-	t5 = x[1] & t4;
-	t6 = t3 ^ t5;
-	y[3] = ~t6;
-	t7 = x[1] ^ t4;
-	t8 = t2 & t7;
-	t9 = t0 | t6;
-	y[1] = t8 ^ t9;
-	ta = x[0] ^ t4;
-	tb = x[2] ^ y[1];
-	tc = t7 & ta;
-	y[2] = tb ^ tc;
+	t2 = x[1] ^ t1;
+	y[0] = x[2] ^ t2;
+	t3 = t1 & t2;
+	t4 = x[0] ^ t3;
+	t5 = y[0] ^ t4;
+	y[3] = ~t5;
+	t6 = t1 & t4;
+	t7 = x[2] ^ t6;
+	t8 = t5 | t7;
+	y[1] = t1 ^ t8;
+	y[2] = t7 ^ y[1];
 }
 Serpent.sbox_2_inv = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
 	t0 = x[0] ^ x[3];
 	t1 = x[2] ^ x[3];
 	t2 = x[1] | t1;
 	y[0] = t0 ^ t2;
-	t3 = x[0] ^ x[1];
-	t4 = x[2] ^ t3;
-	t5 = x[2] & t0;
-	t6 = t4 | t5;
-	y[1] = t2 & t6;
-	t7 = x[0] ^ t2;
-	t8 = t3 ^ t5;
-	t9 = y[1] & t8;
-	ta = t7 ^ t9;
-	y[2] = ~ta;
-	tb = x[0] ^ y[0];
-	tc = y[1] ^ tb;
-	td = y[0] | y[2];
-	y[3] = tc ^ td;
+	t3 = x[1] ^ t1;
+	t4 = x[2] & t3;
+	t5 = t2 ^ t4;
+	t6 = t0 & t5;
+	y[1] = t3 ^ t6;
+	t7 = x[0] ^ y[1];
+	t8 = ~t5;
+	y[2] = t7 ^ t8;
+	t9 = y[0] & y[2];
+	y[3] = t8 ^ t9;
 }
 Serpent.sbox_3 = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td;
-	t0 = x[0] ^ x[1];
-	t1 = x[2] ^ x[3];
-	t2 = x[1] & t1;
-	t3 = x[3] & t1;
-	t4 = t0 | t3;
-	y[0] = t2 ^ t4;
-	t5 = x[0] ^ x[2];
-	t6 = x[1] & t5;
-	t7 = t1 ^ t6;
-	t8 = x[0] | t2;
-	y[2] = t7 ^ t8;
-	t9 = x[1] ^ t5;
-	ta = x[0] | t3;
-	tb = t7 & ta;
-	y[3] = t9 ^ tb;
-	tc = x[1] ^ ta;
-	td = y[3] | tc;
-	y[1] = t7 ^ td;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
+	t0 = x[0] ^ x[2];
+	t1 = x[3] ^ t0;
+	t2 = x[0] | t1;
+	t3 = x[2] ^ t2;
+	t4 = x[1] & t3;
+	y[2] = t1 ^ t4;
+	t5 = x[0] & x[3];
+	t6 = t0 & t3;
+	t7 = x[1] | t5;
+	y[1] = t6 ^ t7;
+	t8 = x[0] ^ x[1];
+	t9 = t1 ^ t6;
+	ta = t4 | t8;
+	y[3] = t9 ^ ta;
+	tb = x[3] | ta;
+	tc = t2 & tb;
+	y[0] = x[1] ^ tc;
 }
 Serpent.sbox_3_inv = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb;
 	t0 = x[1] ^ x[2];
 	t1 = x[1] & t0;
 	t2 = x[0] ^ t1;
 	t3 = x[3] | t2;
 	y[0] = t0 ^ t3;
-	t4 = x[1] ^ x[3];
-	t5 = t2 ^ y[0];
-	t6 = t3 & t5;
-	y[2] = t4 ^ t6;
-	t7 = x[3] ^ t3;
-	t8 = x[2] | t2;
-	t9 = t5 & t8;
-	y[3] = t7 | t9;
-	ta = x[1] ^ y[2];
-	tb = t8 ^ t9;
-	tc = y[0] | ta;
-	y[1] = tb ^ tc;
+	t4 = x[2] ^ x[3];
+	t5 = t2 ^ t4;
+	t6 = t0 | t3;
+	y[2] = t5 ^ t6;
+	t7 = x[0] & t2;
+	t8 = y[0] | t5;
+	y[1] = t7 ^ t8;
+	t9 = x[1] ^ t8;
+	ta = x[3] & y[0];
+	tb = t2 | t9;
+	y[3] = ta ^ tb;
 }
 Serpent.sbox_4 = function(x,y)
 {
@@ -358,156 +333,139 @@ Serpent.sbox_4 = function(x,y)
 }
 Serpent.sbox_4_inv = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
-	t0 = x[2] ^ x[3];
-	t1 = x[2] | x[3];
-	t2 = x[1] ^ t1;
-	t3 = x[0] & t2;
-	y[1] = t0 ^ t3;
-	t4 = x[0] ^ x[3];
-	t5 = t1 ^ t3;
-	t6 = t4 & t5;
-	y[3] = t2 ^ t6;
-	t7 = x[2] ^ y[3];
-	t8 = ~x[0];
-	t9 = t7 | t8;
-	y[0] = t2 ^ t9;
-	ta = x[2] & t5;
-	tb = t8 ^ ta;
-	tc = x[3] | t7;
-	y[2] = tb ^ tc;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb;
+	t0 = x[2] | x[3];
+	t1 = x[1] ^ t0;
+	t2 = x[0] & t1;
+	t3 = x[2] ^ t2;
+	y[1] = x[3] ^ t3;
+	t4 = x[1] | x[3];
+	t5 = x[0] & t4;
+	t6 = t1 ^ t5;
+	y[3] = x[3] ^ t6;
+	t7 = ~x[0];
+	t8 = y[1] | t7;
+	y[0] = t6 ^ t8;
+	t9 = x[2] ^ t4;
+	ta = t3 | t7;
+	tb = t9 & ta;
+	y[2] = t8 ^ tb;
 }
 Serpent.sbox_5 = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta;
 	t0 = x[0] ^ x[1];
-	t1 = x[0] ^ x[2];
-	t2 = x[0] ^ x[3];
-	t3 = t0 | t2;
-	t4 = t1 ^ t3;
-	y[0] = ~t4;
-	t5 = x[1] ^ t2;
-	t6 = x[3] | y[0];
-	y[1] = t5 ^ t6;
-	t7 = x[3] ^ t6;
-	t8 = x[1] | t4;
-	t9 = t5 | t7;
-	y[2] = t8 ^ t9;
-	ta = x[0] ^ t4;
-	tb = x[3] ^ y[2];
-	tc = t5 | tb;
-	y[3] = ta ^ tc;
+	t1 = x[1] & t0;
+	t2 = x[2] ^ t1;
+	t3 = ~x[3];
+	t4 = t0 | t3;
+	y[0] = t2 ^ t4;
+	t5 = t3 & y[0];
+	y[1] = t0 ^ t5;
+	t6 = x[0] ^ t2;
+	t7 = t0 ^ t3;
+	t8 = y[0] & t6;
+	y[2] = t7 ^ t8;
+	t9 = x[1] ^ t2;
+	ta = t7 & y[2];
+	y[3] = t9 ^ ta;
 }
 Serpent.sbox_5_inv = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td;
-	t0 = x[0] ^ x[3];
-	t1 = x[0] & x[1];
-	t2 = x[1] & x[2];
-	t3 = t0 | t1;
-	y[0] = t2 ^ t3;
-	t4 = x[0] ^ x[2];
-	t5 = x[0] & x[3];
-	t6 = x[1] & t3;
-	t7 = t4 | t5;
-	y[2] = t6 ^ t7;
-	t8 = x[1] ^ x[2];
-	t9 = ~t8;
-	ta = t1 | t9;
-	y[3] = t5 ^ ta;
-	tb = x[0] ^ x[1];
-	tc = t3 ^ y[3];
-	td = t9 | tb;
-	y[1] = tc ^ td;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb;
+	t0 = x[0] & x[3];
+	t1 = x[2] ^ t0;
+	t2 = x[1] & t1;
+	t3 = x[3] ^ t2;
+	y[0] = x[0] ^ t3;
+	t4 = x[0] & y[0];
+	t5 = ~x[1];
+	t6 = t4 | t5;
+	y[3] = t1 ^ t6;
+	t7 = x[0] & y[3];
+	t8 = x[1] ^ t7;
+	y[1] = t3 ^ t8;
+	t9 = x[1] ^ x[3];
+	ta = t1 ^ t9;
+	tb = y[0] | y[1];
+	y[2] = ta ^ tb;
 }
 Serpent.sbox_6 = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td, te;
-	t0 = x[1] ^ x[2];
-	t1 = x[0] & x[3];
-	t2 = t0 ^ t1;
-	y[1] = ~t2;
-	t3 = x[0] ^ x[2];
-	t4 = x[3] ^ t3;
-	t5 = x[2] & t0;
-	t6 = x[0] | x[1];
-	t7 = t4 | t5;
-	y[3] = t6 ^ t7;
-	t8 = x[0] ^ t6;
-	t9 = t1 ^ y[1];
-	ta = t4 | t8;
-	tb = y[3] | t9;
-	y[0] = ta ^ tb;
-	tc = x[0] ^ x[3];
-	td = t3 ^ y[0];
-	te = t0 | tc;
-	y[2] = td ^ te;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
+	t0 = x[0] & x[3];
+	t1 = x[2] ^ t0;
+	t2 = ~t1;
+	y[1] = x[1] ^ t2;
+	t3 = x[0] ^ x[3];
+	t4 = x[1] ^ t3;
+	t5 = y[1] | t3;
+	t6 = x[3] ^ t5;
+	t7 = t2 & t6;
+	y[2] = t4 ^ t7;
+	t8 = t2 ^ t6;
+	y[0] = y[2] ^ t8;
+	t9 = t4 & t8;
+	y[3] = t1 ^ t9;
 }
 Serpent.sbox_6_inv = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td;
-	t0 = x[1] ^ x[3];
-	t1 = ~x[2];
-	t2 = x[0] | t1;
-	y[1] = t0 ^ t2;
-	t3 = x[0] ^ x[1];
-	t4 = x[2] ^ t3;
-	t5 = x[1] & t4;
-	t6 = t1 ^ t5;
-	t7 = t0 | t6;
-	y[2] = t4 ^ t7;
-	t8 = x[0] ^ t7;
-	t9 = t0 ^ t5;
-	ta = t3 | t9;
-	y[3] = t8 ^ ta;
-	tb = x[2] ^ y[1];
-	tc = y[2] & tb;
-	td = t8 | tc;
-	y[0] = t9 ^ td;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta;
+	t0 = ~x[2];
+	t1 = x[0] | t0;
+	t2 = x[3] ^ t1;
+	y[1] = x[1] ^ t2;
+	t3 = x[0] ^ x[2];
+	t4 = t2 ^ t3;
+	t5 = t3 & t4;
+	t6 = x[0] ^ t5;
+	t7 = x[1] & t6;
+	y[0] = t4 ^ t7;
+	t8 = t6 ^ y[0];
+	y[3] = x[1] ^ t8;
+	t9 = y[0] & y[3];
+	ta = t2 ^ t9;
+	y[2] = ~ta;
 }
 Serpent.sbox_7 = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td, te, tf;
-	t0 = x[0] ^ x[1];
-	t1 = x[2] ^ t0;
-	t2 = x[0] & x[2];
-	t3 = x[0] & x[3];
-	t4 = t1 | t2;
-	y[3] = t3 ^ t4;
-	t5 = x[0] ^ x[2];
-	t6 = x[3] ^ t1;
-	t7 = t0 & t5;
-	t8 = t3 | t6;
-	y[1] = t7 ^ t8;
-	t9 = x[0] ^ t6;
-	ta = t0 & t1;
-	tb = t8 & t9;
-	y[2] = ta | tb;
-	tc = x[1] ^ x[3];
-	td = x[3] | y[3];
-	te = ~td;
-	tf = t7 | te;
-	y[0] = tc ^ tf;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
+	t0 = x[1] ^ x[2];
+	t1 = x[2] & t0;
+	t2 = x[3] ^ t1;
+	t3 = x[0] ^ t2;
+	t4 = x[0] & t3;
+	y[3] = t0 ^ t4;
+	t5 = x[1] ^ t3;
+	t6 = t4 & y[3];
+	y[1] = t5 ^ t6;
+	t7 = y[3] & t5;
+	t8 = x[3] & t2;
+	y[2] = t7 ^ t8;
+	t9 = x[1] ^ t7;
+	ta = t2 | t9;
+	tb = ~t3;
+	tc = t0 | tb;
+	y[0] = ta ^ tc;
 }
 Serpent.sbox_7_inv = function(x,y)
 {
-	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc, td;
+	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
 	t0 = x[0] & x[1];
 	t1 = x[0] | x[1];
 	t2 = x[3] & t1;
 	t3 = x[2] | t0;
 	y[3] = t2 ^ t3;
-	t4 = x[1] ^ x[3];
-	t5 = x[0] | x[3];
-	t6 = x[2] & t5;
-	t7 = t0 | t4;
-	y[2] = t6 ^ t7;
-	t8 = x[0] ^ t4;
-	t9 = x[1] ^ t2;
-	ta = t3 | t9;
-	tb = t8 ^ ta;
-	y[1] = ~tb;
-	tc = x[2] ^ t9;
-	td = x[3] | y[1];
-	y[0] = tc ^ td;
+	t4 = x[1] ^ t2;
+	t5 = x[3] ^ y[3];
+	t6 = ~t5;
+	t7 = t4 | t6;
+	y[1] = x[0] ^ t7;
+	t8 = x[3] | y[1];
+	t9 = x[2] ^ t8;
+	y[0] = t4 ^ t9;
+	ta = x[1] ^ t7;
+	tb = t9 ^ ta;
+	tc = x[0] | y[3];
+	y[2] = tb ^ tc;
 }
