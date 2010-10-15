@@ -127,11 +127,11 @@ as_base64: function(buf, off, sz)
 	return res;
 },
 
-/** Convert a hex string to type int[].
+/** Convert an ascii string to type int[].
  * \param str	Hex string
  * \return	The buffer as an array of int.
  */
-from_hex: function(str)
+from_ascii: function(str)
 {
 	var bytes = [];
 	var i, j;
@@ -150,6 +150,41 @@ from_hex: function(str)
 	var res = Buffer.zeros32((bytes.length + 3)>>>2);
 	for (i = 0; i < bytes.length; i++)
 		Buffer.set32(res, i, bytes[i]);
+	return res;
+},
+
+/** Convert a hex string to type int[].
+ * \param str	Hex string
+ * \return	The buffer as an array of int or else null.
+ */
+from_hex: function(str)
+{
+	var res = [];
+	var n = 0;
+	var i;
+	var j = 0;
+	for (i = 0; i < str.length; i++) {
+		var c = str.charCodeAt(i);
+		if (c >= 0x30 && c <= 0x39)
+			c -= 0x30;
+		else if (c >= 0x41 && c <= 0x46)
+			c -= 0x41 - 10;
+		else if (c >= 0x61 && c <= 0x66)
+			c -= 0x61 - 10;
+		else
+			return null;
+		n = (n << 4) | c;
+		if (j == 7) {
+			res.push(n);
+			j = 0;
+			n = 0;
+		} else
+			j++;
+	}
+	if (j) {
+		while (j++ < 8) n <<= 4;
+		res.push(n);
+	}
 	return res;
 },
 

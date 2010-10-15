@@ -24,9 +24,9 @@ function msg_clear()
 		container.removeChild(container.firstChild);
 }
 
-function run_test(groupname, testnum, hashfn, msg, hash)
+function run_hash_test(groupname, testnum, hashfn, msg, hash)
 {
-	var buf = Buffer.from_hex(msg);
+	var buf = Buffer.from_ascii(msg);
 	hashfn.init();
 	hashfn.update(buf, msg.length);
 	var digest = hashfn.end();
@@ -40,6 +40,68 @@ function run_test(groupname, testnum, hashfn, msg, hash)
 	else
 		msg += 'FAIL (got ' + digest_hex + ')';
 	msg_print(msg);
+}
+
+function run_serpent_test(testnum, key, ct, pt, type, encrypt)
+{
+	var buf;
+	var cipher;
+	var correct;
+	var i;
+	var iter;
+	var msg;
+
+	ct = Buffer.from_hex(ct);
+	pt = Buffer.from_hex(pt);
+
+	cipher = new Serpent(Buffer.from_hex(key));
+
+	iter = type == 'monte_carlo' ? 10000 : 1;
+	buf = [0,0,0,0];
+	if (encrypt) {
+		correct = ct;
+		cipher.encrypt(pt, buf);
+		for (i = 1; i != iter; ++i)
+			cipher.encrypt(buf, buf);
+	} else {
+		correct = pt;
+		cipher.decrypt(ct, buf);
+		for (i = 1; i != iter; ++i)
+			cipher.decrypt(buf, buf);
+	}
+	msg = '\nserpent test ' + testnum + ': ';
+	for (i = 0; i != 4; ++i)
+		if (correct[i] != buf[i]) {
+			msg_print(msg + 'FAIL correct:' +
+			    Buffer.as_hex(correct) + ' result:' +
+			    Buffer.as_hex(buf));
+			return;
+		}
+
+	switch (type) {
+	case 'table':
+	case 'variable_key':
+	case 'variable_text':
+		// do opposite direction for known answer
+		if (encrypt) {
+			correct = pt;
+			cipher.decrypt(ct, buf);
+		} else {
+			correct = ct;
+			cipher.encrypt(pt, buf);
+		}
+
+		for (i = 0; i != 4; ++i)
+			if (correct[i] != buf[i]) {
+				msg_print(msg + 'FAIL correct:' +
+				    Buffer.as_hex(correct) + ' result:' +
+				    Buffer.as_hex(buf));
+				return;
+			}
+	default:;
+	}
+
+	msg_print(msg + 'PASS');
 }
 
 function checkbox_value(id)
@@ -61,6 +123,7 @@ function start_tests()
 
 	var run_tiger = checkbox_value('run_tiger');
 	var run_whirlpool = checkbox_value('run_whirlpool');
+	var run_serpent = checkbox_value('run_serpent');
 	var run_longtests = checkbox_value('run_longtests');
 
 	var tiger;
@@ -252,6 +315,8 @@ function start_tests()
 			'8C6008AD677F77126953B226E4ED8B01',
 		    longtest: true
 		});
+	if (run_serpent && run_longtests)
+		tests = tests.concat(serpent_tests);
 
 	tests_running = true;
 	msg_clear();
@@ -268,7 +333,16 @@ function run_tests(tests, start_index)
 	}
 
 	var test = tests[start_index];
-	run_test(test.group, test.testnum, test.fn, test.msg, test.hash);
+	if (test.key != null) {
+		// rather than import all the other tests, I'll just run
+		// the monte-carlo test twice
+		run_serpent_test(test.testnum*2-1, test.key, test.ct, test.pt,
+		    test.type, test.encrypt);
+		run_serpent_test(test.testnum*2, test.key, test.ct, test.pt,
+		    test.type, !test.encrypt);
+	} else
+		run_hash_test(test.group, test.testnum, test.fn, test.msg,
+		    test.hash);
 
 	// tail recurse, let status update
 	setTimeout(function() {
