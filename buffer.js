@@ -21,19 +21,19 @@ type: function(buf)
 {
 	// doesn't really matter in this case
 	if (!buf.length) return this.BUF32;
-	if (buf[0] == null) {
-		var x = 3;
-	}
 	switch (buf[0].constructor) {
 	case Number:	return this.BUF32;
-	case Long:	return this.BUF64
-	default:	throw 'buffer::type(): bad number type';
+	case Long:	return this.BUF64;
 	}
+	throw 'buffer::type(): bad number type';
 },
 
 /** Convert a buffer to a hex string
  *
- * If only two arguments specified, the second is the size
+ * as_hex(buf)
+ * as_hex(buf, sz)
+ * as_hex(buf, off, sz)
+ *
  * \param buf	Buffer of data
  * \param off	(Optional) byte offset to begin at
  * \param sz	(Optional) number of bytes
@@ -55,9 +55,9 @@ as_hex: function(buf, off, sz)
 	}
 	var res = '';
 	for (var i = 0; i < sz; i++) {
-		var n = get(buf, i + off).toString(16);
-		if (n.length == 1) res += '0' + n;
-		else res += n;
+		var n = get(buf, off++).toString(16);
+		if (n.length == 1) n = '0' + n;
+		res += n;
 	}
 	return res;
 },
@@ -74,7 +74,10 @@ b64_val_to_char: function(n)
 
 /** Convert a buffer to a base64 string.
  *
- * If two arguments are given, the second is taken as 'sz'.
+ * as_base64(buf)
+ * as_base64(buf, sz)
+ * as_base64(buf, off, sz)
+ *
  * \param buf	The buffer of int[]
  * \param off	[optional] Start offset in bytes
  * \param sz	[optional] Number of bytes to copy
@@ -101,33 +104,31 @@ as_base64: function(buf, off, sz)
 	var i;
 	var sp;
 	for (var b = 0; b < blocks; b++) {
-		n = (get(buf, 3*b + off) << 16) |
-		    (get(buf, 3*b + off + 1) << 8) |
-		    get(buf, 3*b + off + 2);
+		n = (get(buf, off++) << 16) | (get(buf, off++) << 8) |
+		    get(buf, off++);
 		sp = [n>>18, (n>>12)&0x3f, (n>>6)&0x3f, n&0x3f];
 		for (i = 0; i < 4; i++)
-			res += Buffer.b64_val_to_char(sp[i]);
+			res += this.b64_val_to_char(sp[i]);
 	}
 	switch (left) {
 	case 2:
-		n = (get(buf, 3*blocks + off) << 16) |
-		    (get(buf, 3*blocks + off + 1) << 8);
+		n = (get(buf, off++) << 16) | (get(buf, off) << 8);
 		sp = [n>>18, (n>>12)&0x3f, (n>>6)&0x3f];
 		for (i = 0; i < 3; i++)
-			res += Buffer.b64_val_to_char(sp[i]);
+			res += this.b64_val_to_char(sp[i]);
 		res += '=';
 		break;
 	case 1:
-		n = (get(buf, 3*blocks + off) << 16);
+		n = (get(buf, off) << 16);
 		sp = [n>>18, (n>>12)&0x3f];
 		for (i = 0; i < 2; i++)
-			res += Buffer.b64_val_to_char(sp[i]);
+			res += this.b64_val_to_char(sp[i]);
 		res += '==';
 	}
 	return res;
 },
 
-/** Convert an ascii string to type int[].
+/** Convert an ASCII string to type int[].
  * \param str	Hex string
  * \return	The buffer as an array of int.
  */
@@ -147,9 +148,9 @@ from_ascii: function(str)
 		for (j = chbytes.length-1; j > -1; j--)
 			bytes.push(chbytes[j]);
 	}
-	var res = Buffer.zeros32((bytes.length + 3)>>>2);
+	var res = this.zeros32((bytes.length + 3)>>>2);
 	for (i = 0; i < bytes.length; i++)
-		Buffer.set32(res, i, bytes[i]);
+		this.set32(res, i, bytes[i]);
 	return res;
 },
 
@@ -299,12 +300,14 @@ zeros64: function(sz)
 /** Set an array of int to zeros */
 setzero32: function(buf)
 {
-	for (var i = 0; i < buf.length; i++) buf[i] = 0;
+	var i = buf.length;
+	while (i) buf[--i] = 0;
 },
 /** Set an array of Long to zeros */
 setzero64: function(buf)
 {
-	for (var i = 0; i < buf.length; i++) buf[i] = new Long;
+	var i = buf.length;
+	while (i) buf[--i] = new Long;
 },
 
 /** Assign be32[i] := v */
@@ -326,8 +329,6 @@ get32: function(buf, index)
 /** Assign be64[i] := v */
 set64: function(buf, index, value)
 {
-	if (buf.length * 8 < index)
-		alert(buf.length + ',' + index);
 	var pos0 = index >>> 3;
 	var pos1 = (index & 7) >>> 1;
 	var bits = (~index & 1) << 3;

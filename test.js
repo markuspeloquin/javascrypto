@@ -9,10 +9,8 @@ function str_reverse(str)
 function msg_print(str)
 {
 	var container = document.getElementById('status');
-	if (container.firstChild) {
-		var br = document.createElement('br');
-		container.appendChild(br);
-	}
+	if (container.firstChild)
+		container.appendChild(document.createElement('br'));
 	var txt = document.createTextNode(str);
 	container.appendChild(txt);
 }
@@ -34,7 +32,7 @@ function run_hash_test(groupname, testnum, hashfn, msg, hash)
 
 	hash = hash.toLowerCase();
 	digest_hex = digest_hex.toLowerCase();
-	var msg = '\n' + groupname + ' test ' + testnum + ': ';
+	var msg = groupname + ' test ' + testnum + ': ';
 	if (digest_hex == hash)
 		msg += 'PASS';
 	else
@@ -69,7 +67,7 @@ function run_serpent_test(testnum, key, ct, pt, type, encrypt)
 		for (i = 1; i != iter; ++i)
 			cipher.decrypt(buf, buf);
 	}
-	msg = '\nserpent test ' + testnum + ': ';
+	msg = 'serpent test ' + testnum + ': ';
 	for (i = 0; i != 4; ++i)
 		if (correct[i] != buf[i]) {
 			msg_print(msg + 'FAIL correct:' +

@@ -29,16 +29,16 @@ Long = function(a,b)
 	case 1:
 		if (a.constructor == Long) {
 			// Long(Long n)
-			this.n = [a.n[0],a.n[1],a.n[2],a.n[3]];
+			this.n = a.n.slice();
 		} else {
 			// Long(int n)
-			this.n = [0,0, (a>>>16) & 0xffff, a&0xffff];
+			this.n = [0,0, (a>>>16) & 0xffff, a & 0xffff];
 		}
 		break;
 	default:
 		// Long(int hi, int lo)
-		this.n = [(a>>>16) & 0xffff, a&0xffff, (b>>>16) & 0xffff,
-		    b&0xffff];
+		this.n = [(a>>>16) & 0xffff, a & 0xffff,
+		    (b>>>16) & 0xffff, b & 0xffff];
 	}
 }
 Long.prototype = {};
@@ -52,6 +52,7 @@ Long.prototype.toString = function()
 	}
 	return res;
 }
+// n=0: least-significant
 Long.prototype.get8 = function(n)
 {
 	return (this.n[(n>>>1) ^ 3] >> ((n & 1) << 3)) & 0xff;
@@ -60,16 +61,15 @@ Long.prototype.get16 = function(n)
 {
 	return this.n[n ^ 3];
 }
-/** Return sum of two Long */
-Long.add = function(a,b)
+/** Return sum of two Long
+ * \param carry[optional] 0 or 1*/
+Long.add = function(a,b,carry)
 {
-	var carry = 0;
-	if (arguments.length > 2) carry = arguments[2];
+	carry = carry || 0;
 	var n = new Long;
 	for (var i = 3; i > -1; i--) {
 		n.n[i] = a.n[i] + b.n[i] + carry;
-		if (i)
-			carry = n.n[i] >>> 16;
+		if (i) carry = n.n[i] >>> 16;
 		n.n[i] &= 0xffff;
 	}
 	return n;
