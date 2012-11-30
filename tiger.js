@@ -639,7 +639,13 @@ Tiger.round = function(a,b,c,x,m)
 	b0 = Long.add(b,Long.xor_list([
 		Tiger.t4[c0.get8(1)],Tiger.t3[c0.get8(3)],
 		Tiger.t2[c0.get8(5)],Tiger.t1[c0.get8(7)]]));
-	b0 = Long.multiply(b0,m);
+	// using add+shift instead gives a speedup of 1.19
+	switch (m) {
+	case 5:  b0 = Long.add(     Long.lshift(b0, 2), b0); break;
+	case 7:  b0 = Long.subtract(Long.lshift(b0, 3), b0); break;
+	case 9:  b0 = Long.add(     Long.lshift(b0, 3), b0); break;
+	default: b0 = Long.multiply(b0, m);
+	}
 	a.n = a0.n;
 	b.n = b0.n;
 	c.n = c0.n;
