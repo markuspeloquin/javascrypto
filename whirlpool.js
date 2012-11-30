@@ -1244,12 +1244,14 @@ Whirlpool.prototype._process_buf = function()
 
 Whirlpool.prototype._increment_count = function(sz)
 {
+	var bit_count = this._bit_count;
+
 	var val = Long.lshift(new Long(sz),3);
 	var sum;
 	for (var i = 15; i >= 0; i--) {
-		sum = val.get16(0) + this._bit_count[i];
-		this._bit_count[i] = sum & 0xffff;
-		val = Long.rshift(Long.add(val,new Long(sum)),16);
+		sum = val.get16(0) + bit_count[i];
+		bit_count[i] = sum & 0xffff;
+		val = Long.add(Long.rshift(val, 16), new Long(sum >> 16));
 	}
 }
 
@@ -1258,6 +1260,7 @@ Whirlpool.prototype._append_count = function()
 {
 	// compress bit_count to _buf
 	var bc = this._bit_count;
+	var buf = this._buf;
 	for (var i = 0, j = 0; i < 8; i++, j += 2)
-		this._buf[i+8] = (bc[j] << 16) | bc[j+1];
+		buf[i+8] = (bc[j] << 16) | bc[j+1];
 }

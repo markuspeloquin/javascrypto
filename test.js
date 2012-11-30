@@ -22,25 +22,58 @@ function msg_clear()
 		container.removeChild(container.firstChild);
 }
 
-function run_hash_test(groupname, testnum, hashfn, msg, hash)
+Timer = (function(){
+	function Timer()
+	{
+		this.constructor = Timer;
+		this._start = new Date().getTime();
+	}
+	function read()
+	{
+		var now = new Date();
+		return new Date().getTime() - this._start;
+	}
+
+	Timer.prototype = {
+		read: read,
+	};
+	return Timer;
+})();
+
+function add_run_time(run_time, group, milli)
 {
-	var buf = Buffer.from_ascii(msg);
+	run_time[group] = (run_time[group] || 0) + milli;
+}
+
+function run_hash_test(test, run_time)
+{
+	var group = test.group;
+	var hash = test.hash.toLowerCase();
+	var hashfn = test.fn;
+	var msg = test.msg;
+
+	var timer = new Timer();
 	hashfn.init();
-	hashfn.update(buf, msg.length);
+	if (msg != null) {
+		var buf = Buffer.from_ascii(msg);
+		hashfn.update(buf, msg.length);
+	} else {
+		test.generator(hashfn);
+	}
 	var digest = hashfn.end();
 	var digest_hex = Buffer.as_hex(digest);
+	add_run_time(run_time, group, timer.read());
 
-	hash = hash.toLowerCase();
 	digest_hex = digest_hex.toLowerCase();
-	var msg = groupname + ' test ' + testnum + ': ';
-	if (digest_hex == hash)
+	msg = group + ' test ' + test.testnum + ': ';
+	if (digest_hex == hash) {
 		msg += 'PASS';
-	else
+	} else
 		msg += 'FAIL (got ' + digest_hex + ')';
 	msg_print(msg);
 }
 
-function run_serpent_test(testnum, key, ct, pt, type, encrypt)
+function run_serpent_test(testnum, key, ct, pt, type, encrypt, run_time)
 {
 	var buf;
 	var cipher;
@@ -52,6 +85,7 @@ function run_serpent_test(testnum, key, ct, pt, type, encrypt)
 	ct = Buffer.from_hex(ct);
 	pt = Buffer.from_hex(pt);
 
+	var timer = new Timer();
 	cipher = new Serpent(Buffer.from_hex(key));
 
 	iter = type == 'monte_carlo' ? 10000 : 1;
@@ -68,13 +102,10 @@ function run_serpent_test(testnum, key, ct, pt, type, encrypt)
 			cipher.decrypt(buf, buf);
 	}
 	msg = 'serpent test ' + testnum + ': ';
+	var success = true;
 	for (i = 0; i != 4; ++i)
-		if (correct[i] != buf[i]) {
-			msg_print(msg + 'FAIL correct:' +
-			    Buffer.as_hex(correct) + ' result:' +
-			    Buffer.as_hex(buf));
-			return;
-		}
+		if (correct[i] != buf[i])
+			success = false;
 
 	switch (type) {
 	case 'table':
@@ -90,16 +121,19 @@ function run_serpent_test(testnum, key, ct, pt, type, encrypt)
 		}
 
 		for (i = 0; i != 4; ++i)
-			if (correct[i] != buf[i]) {
-				msg_print(msg + 'FAIL correct:' +
-				    Buffer.as_hex(correct) + ' result:' +
-				    Buffer.as_hex(buf));
-				return;
-			}
+			if (correct[i] != buf[i])
+				success = false;
+
 	default:;
 	}
+	add_run_time(run_time, 'serpent', timer.read());
 
-	msg_print(msg + 'PASS');
+	if (success)
+		msg_print(msg + 'PASS');
+	else
+		msg_print(msg + 'FAIL correct:' +
+		    Buffer.as_hex(correct) + ' result:' +
+		    Buffer.as_hex(buf));
 }
 
 function checkbox_value(id)
@@ -117,6 +151,7 @@ function start_tests()
 
 	var alphabet = 'abcdefghijklmnopqrstuvwxyz';
 	var digits = '0123456789';
+
 	var tests = [];
 
 	var run_tiger = checkbox_value('run_tiger');
@@ -178,17 +213,27 @@ function start_tests()
 		    fn: tiger,
 		    group: 'tiger',
 		    testnum: 7,
-		    msg: (alphabet.toUpperCase() + alphabet + digits),
+		    generator: function (hashfn) {
+			var bufs = [
+			    Buffer.from_ascii(alphabet.toUpperCase()),
+			    Buffer.from_ascii(alphabet),
+			    Buffer.from_ascii(digits)
+			];
+			hashfn.update(bufs[0], alphabet.length);
+			hashfn.update(bufs[1], alphabet.length);
+			hashfn.update(bufs[2], digits.length);
+		    },
 		    hash: '8DCEA680A17583EE502BA38A3C368651890FFBCCDC49A8CC'
 		});
 		tests.push({
 		    fn: tiger,
 		    group: 'tiger',
 		    testnum: 8,
-		    msg: function(){
-			var res = '';
-			for (var i = 0; i < 8; i++) res += '1234567890';
-			return res; }(),
+		    generator: function (hashfn) {
+			    var buf = Buffer.from_ascii('1234567890');
+			    for (var i = 0; i < 8; i++)
+				    hashfn.update(buf, 10);
+		    },
 		    hash: '1C14795529FD9F207A958F84C52F11E887FA0CABDFD91BFD'
 		});
 	}
@@ -197,10 +242,11 @@ function start_tests()
 		    fn: tiger,
 		    group: 'tiger',
 		    testnum: 9,
-		    msg: function(){
-			var res = '';
-			for (var i = 0; i < 1000000; i++) res += 'a';
-			return res; }(),
+		    generator: function (hashfn) {
+			    var buf = Buffer.from_ascii('aaaaaaaaaa');
+			    for (var i = 0; i < 100000; i++)
+				    hashfn.update(buf, 10);
+		    },
 		    hash: '6DB0E2729CBEAD93D715C6A7D36302E9B3CEE0D2BC314B41',
 		    longtest: true
 		});
@@ -264,7 +310,16 @@ function start_tests()
 		    fn: whirlpool,
 		    group: 'whirlpool',
 		    testnum: 6,
-		    msg: (alphabet.toUpperCase() + alphabet + digits),
+		    generator: function (hashfn) {
+			var bufs = [
+			    Buffer.from_ascii(alphabet.toUpperCase()),
+			    Buffer.from_ascii(alphabet),
+			    Buffer.from_ascii(digits)
+			];
+			hashfn.update(bufs[0], alphabet.length);
+			hashfn.update(bufs[1], alphabet.length);
+			hashfn.update(bufs[2], digits.length);
+		    },
 		    hash:
 			'DC37E008CF9EE69BF11F00ED9ABA2690' +
 			'1DD7C28CDEC066CC6AF42E40F82F3A1E' +
@@ -275,10 +330,11 @@ function start_tests()
 		    fn: whirlpool,
 		    group: 'whirlpool',
 		    testnum: 7,
-		    msg: function(){
-			var res = '';
-			for (var i = 0; i < 8; i++) res += '1234567890';
-			return res; }(),
+		    generator: function (hashfn) {
+			    var buf = Buffer.from_ascii('1234567890');
+			    for (var i = 0; i < 8; i++)
+				    hashfn.update(buf, 10);
+		    },
 		    hash:
 			'466EF18BABB0154D25B9D38A6414F5C0' +
 			'8784372BCCB204D6549C4AFADB601429' +
@@ -302,10 +358,11 @@ function start_tests()
 		    fn: whirlpool,
 		    group: 'whirlpool',
 		    testnum: 9,
-		    msg: function(){
-			var res = '';
-			for (var i = 0; i < 1000000; i++) res += 'a';
-			return res; }(),
+		    generator: function (hashfn) {
+			    var buf = Buffer.from_ascii('aaaaaaaaaa');
+			    for (var i = 0; i < 100000; i++)
+				    hashfn.update(buf, 10);
+		    },
 		    hash:
 			'0C99005BEB57EFF50A7CF005560DDF5D' +
 			'29057FD86B20BFD62DECA0F1CCEA4AF5' +
@@ -318,33 +375,58 @@ function start_tests()
 
 	tests_running = true;
 	msg_clear();
-	run_tests(tests, 0);
+
+	var state = {
+		tests: tests,
+		times: {},
+		index: 0,
+	};
+	run_tests(state);
 }
 
-function run_tests(tests, start_index)
+function foreach_pair(object, fn) {
+	var keys = [];
+	var key;
+	for (key in object) keys.push(key);
+	keys.sort();
+	for (var i = 0; i < keys.length; i++) {
+		key = keys[i];
+		fn(key, object[key]);
+	}
+}
+
+function run_tests(state)
 {
-	if (tests_stop || start_index == tests.length) {
+	var tests = state.tests;
+	var run_time = state.times;
+	var index = state.index;
+
+	if (tests_stop || index == tests.length) {
 		tests_stop = false;
 		tests_running = false;
+		foreach_pair(run_time, function (key, val) {
+			var sec = val / 1000.0;
+			msg_print(key + ': ' + sec + ' s');
+		});
 		msg_print('all stop');
 		return;
 	}
 
-	var test = tests[start_index];
+	var test = tests[index];
 	if (test.key != null) {
 		// rather than import all the other tests, I'll just run
 		// the monte-carlo test twice
 		run_serpent_test(test.testnum*2-1, test.key, test.ct, test.pt,
-		    test.type, test.encrypt);
+		    test.type, test.encrypt, run_time);
 		run_serpent_test(test.testnum*2, test.key, test.ct, test.pt,
-		    test.type, !test.encrypt);
+		    test.type, !test.encrypt, run_time);
 	} else
-		run_hash_test(test.group, test.testnum, test.fn, test.msg,
-		    test.hash);
+		run_hash_test(test, run_time);
 
 	// tail recurse, let status update
+	state.index++;
 	setTimeout(function() {
-		run_tests(tests, start_index + 1);
+		run_tests(state);
 	}, 0);
 }
 
