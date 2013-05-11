@@ -17,7 +17,7 @@
  * \param mode		On of Crypt.MODE_*.
  * \param iv		The initial vector
  */
-Crypt = function(cipher, mode, iv)
+function Crypt(cipher, mode, iv)
 {
 	this._cipher = cipher;
 	this._mode = mode;

@@ -13,24 +13,27 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
 /** Abstract cipher class */
-Cipher = function(block_size)
+function Cipher(block_size)
 {
 	this.constructor = Cipher;
 	this._block_size = block_size;
 }
 Cipher.prototype = {};
+
 /** Encrypt a block of data
  * \param[in] plaintext		Data to encrypt
  * \param[out] ciphertext	Encrypted data
  */
 Cipher.prototype.encrypt = function(plaintext, ciphertext)
 { throw 'Cipher.encrypt() not overloaded' }
+
 /** Decrypt a block of data
  * \param[in] ciphertext	Data to decrypt
  * \param[out] plaintext	Decrypted data
  */
 Cipher.prototype.decrypt = function(ciphertext, plaintext)
 { throw 'Cipher.decrypt() not overloaded' }
+
 /** Get the block size */
 Cipher.prototype.block_size = function()
 { return this._block_size }

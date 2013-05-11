@@ -12,36 +12,44 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
+var Tiger = (function(){
+
+var BLOCK = 64;		/**< Block size in bytes */
+var DIGEST = 24;	/**< Digest size in bytes */
+var NUM_PASSES = 3;
+
 /** Tiger hash function
  * \param version (Optional) version (1 [default] or 2)
  */
-Tiger = function(/*optional*/version)
+function Tiger(/*optional*/version)
 {
 	this.constructor = Tiger;
 	// default to 1
-	this._buf = Buffer.create_zeros32(Tiger.BLOCK/4);
+	this._buf = Buffer.create_zeros32(BLOCK/4);
 	this._version = (arguments.length && version == 2) ? 2 : 1;
 }
-Tiger.BLOCK = 64;	/**< Block size in bytes */
-Tiger.DIGEST = 24;	/**< Digest size in bytes */
-Tiger.prototype = new Hash();
 
-Tiger.prototype.init = function()
+Tiger.BLOCK = BLOCK;
+Tiger.DIGEST = DIGEST;
+tiger.prototype = new Hash;
+
+function init()
 {
 	this._res = new Buffer([new Long(0x01234567,0x89abcdef),
 	    new Long(0xfedcba98,0x76543210),new Long(0xf096a5b4,0xc3b2e187)]);
 	this._length = new Long;
 	this._sz = 0;
 }
-Tiger.prototype.update = function(buf, sz)
+
+function update(buf, sz)
 {
 	if (sz > buf._buf.length*4) sz = buf._buf.length*4;
-	var temp = Buffer.create_zeros64(Tiger.BLOCK/8);
+	var temp = Buffer.create_zeros64(BLOCK/8);
 	var src = 0; // pos
 
 	this._length = Long.add(this._length, new Long(sz));
 
-	if (this._sz + sz < Tiger.BLOCK) {
+	if (this._sz + sz < BLOCK) {
 		// buffer won't fill
 		this._buf.copy(this._sz, buf, src, sz);
 		this._sz += sz;
@@ -50,20 +58,20 @@ Tiger.prototype.update = function(buf, sz)
 
 	// if data remaining in ctx
 	if (this._sz) {
-		var bytes = Tiger.BLOCK - this._sz;
+		var bytes = BLOCK - this._sz;
 		this._buf.copy(this._sz, buf, src, bytes);
-		temp.copy_be_le(0, this._buf, 0, Tiger.BLOCK);
-		Tiger._compress(temp, this._res);
+		temp.copy_be_le(0, this._buf, 0, BLOCK);
+		_compress(temp, this._res);
 		src += bytes;
 		sz -= bytes;
 		// context buffer now empty
 	}
 
-	while (sz >= Tiger.BLOCK) {
-		temp.copy_be_le(0, buf, src, Tiger.BLOCK);
-		Tiger._compress(temp, this._res);
-		src += Tiger.BLOCK;
-		sz -= Tiger.BLOCK;
+	while (sz >= BLOCK) {
+		temp.copy_be_le(0, buf, src, BLOCK);
+		_compress(temp, this._res);
+		src += BLOCK;
+		sz -= BLOCK;
 	}
 
 	if (sz)
@@ -71,9 +79,10 @@ Tiger.prototype.update = function(buf, sz)
 		this._buf.copy(0, buf, src, sz);
 	this._sz = sz;
 }
-Tiger.prototype.end = function()
+
+function end()
 {
-	var temp = Buffer.create_zeros64(Tiger.BLOCK/8);
+	var temp = Buffer.create_zeros64(BLOCK/8);
 	var i;
 
 	temp.copy_be_le(0, this._buf, 0, this._sz);
@@ -83,7 +92,7 @@ Tiger.prototype.end = function()
 	while (i & 7) temp.set64(i++ ^ 7, 0);
 
 	if (i > 56) {
-		Tiger._compress(temp, this._res);
+		_compress(temp, this._res);
 		i = 0;
 	}
 
@@ -92,20 +101,134 @@ Tiger.prototype.end = function()
 		i += 8;
 	}
 	temp._buf[7] = Long.lshift(this._length,3);
-	Tiger._compress(temp, this._res);
+	_compress(temp, this._res);
 
-	var res = new Buffer(new Array(Tiger.DIGEST>>2));
+	var res = new Buffer(new Array(DIGEST>>2));
 	res._buf[0] = 0;
-	Buffer.copy_le_be(res, 0, this._res, 0, Tiger.DIGEST);
+	Buffer.copy_le_be(res, 0, this._res, 0, DIGEST);
 	return res;
 }
-Tiger.prototype.digest_size = function()
-{ return Tiger.DIGEST }
-Tiger.prototype.block_size = function()
-{ return Tiger.BLOCK }
 
-Tiger._NUM_PASSES = 3;
-Tiger.t1 = [
+function digest_size()
+{ return DIGEST }
+
+function block_size()
+{ return BLOCK }
+
+function _round(a,b,c,x,m)
+{
+	var a0, b0, c0;
+	c0 = Long.xor(c,x);
+	a0 = Long.subtract(a,Long.xor_list([
+		T1[c0.get8(0)], T2[c0.get8(2)],
+		T3[c0.get8(4)], T4[c0.get8(6)]]));
+	b0 = Long.add(b,Long.xor_list([
+		T4[c0.get8(1)], T3[c0.get8(3)],
+		T2[c0.get8(5)], T1[c0.get8(7)]]));
+	// using add+shift instead gives a speedup of 1.19
+	switch (m) {
+	case 5:  b0 = Long.add(     Long.lshift(b0, 2), b0); break;
+	case 7:  b0 = Long.subtract(Long.lshift(b0, 3), b0); break;
+	case 9:  b0 = Long.add(     Long.lshift(b0, 3), b0); break;
+	default: b0 = Long.multiply(b0, m);
+	}
+	a.n = a0.n;
+	b.n = b0.n;
+	c.n = c0.n;
+}
+
+function _compress(buffer,state)
+{
+	var buf = buffer._buf;
+	var state_buf = state._buf;
+	var a, b, c, tmpa;
+	var aa, bb, cc;
+	var x0, x1, x2, x3, x4, x5, x6, x7;
+	var mul;
+	aa = state_buf[0];
+	bb = state_buf[1];
+	cc = state_buf[2];
+	a = new Long(aa);
+	b = new Long(bb);
+	c = new Long(cc);
+	x0 = buf[0];
+	x1 = buf[1];
+	x2 = buf[2];
+	x3 = buf[3];
+	x4 = buf[4];
+	x5 = buf[5];
+	x6 = buf[6];
+	x7 = buf[7];
+	var _a5 = new Long(0xa5a5a5a5,0xa5a5a5a5);
+	var _01 = new Long(0x01234567,0x89abcdef);
+	for (var i = 0; i < NUM_PASSES; i++) {
+		if (i) {
+			/* 'key_schedule' */
+			x0 = Long.subtract(x0,Long.xor(x7,_a5));
+			x1 = Long.xor(x1,x0);
+			x2 = Long.add(x2,x1);
+			x3 = Long.subtract(x3,Long.xor(x2,
+			    Long.lshift(Long.not(x1),19)));
+			x4 = Long.xor(x4,x3);
+			x5 = Long.add(x5,x4);
+			x6 = Long.subtract(x6,Long.xor(x5,
+			    Long.rshift(Long.not(x4),23)));
+			x7 = Long.xor(x7,x6);
+			x0 = Long.add(x0,x7);
+			x1 = Long.subtract(x1,Long.xor(x0,
+			    Long.lshift(Long.not(x7),19)));
+			x2 = Long.xor(x2,x1);
+			x3 = Long.add(x3,x2);
+			x4 = Long.subtract(x4,Long.xor(x3,
+			    Long.rshift(Long.not(x2),23)));
+			x5 = Long.xor(x5,x4);
+			x6 = Long.add(x6,x5);
+			x7 = Long.subtract(x7,Long.xor(x6,_01));
+		}
+
+		/* 'pass' */
+		switch (i) {
+		case 0:		mul = 5; break;
+		case 1:		mul = 7; break;
+		default:	mul = 9;
+		}
+		_round(a, b, c, x0, mul);
+		_round(b, c, a, x1, mul);
+		_round(c, a, b, x2, mul);
+		_round(a, b, c, x3, mul);
+		_round(b, c, a, x4, mul);
+		_round(c, a, b, x5, mul);
+		_round(a, b, c, x6, mul);
+		_round(b, c, a, x7, mul);
+
+		tmpa = a;
+		a = c;
+		c = b;
+		b = tmpa;
+	}
+
+	/* 'feed forward' */
+	state_buf[0] = Long.xor(a,aa);
+	state_buf[1] = Long.subtract(b,bb);
+	state_buf[2] = Long.add(c,cc);
+}
+
+function _connect(dest, functions)
+{
+	for (var i = 0; i < functions.length; i++) {
+		var f = functions[i];
+		dest[f.name] = f;
+	}
+}
+_connect(Tiger.prototype, [
+	block_size,
+	digest_size,
+	end,
+	init,
+	update,
+]);
+
+var T1 = [
 	new Long(0x02AAB17C,0xF7E90C5E),new Long(0xAC424B03,0xE243A8EC),
 	new Long(0x72CD5BE3,0x0DD5FCD3),new Long(0x6D019B93,0xF6F97F3A),
 	new Long(0xCD9978FF,0xD21F9193),new Long(0x7573A1C9,0x708029E2),
@@ -236,7 +359,7 @@ Tiger.t1 = [
 	new Long(0xA6300F17,0x0BDC4820),new Long(0xEBC18760,0xED78A77A),
 ];
 
-Tiger.t2 = [
+var T2 = [
 	new Long(0xE6A6BE5A,0x05A12138),new Long(0xB5A122A5,0xB4F87C98),
 	new Long(0x563C6089,0x140B6990),new Long(0x4C46CB2E,0x391F5DD5),
 	new Long(0xD932ADDB,0xC9B79434),new Long(0x08EA70E4,0x2015AFF5),
@@ -367,7 +490,7 @@ Tiger.t2 = [
 	new Long(0xD62A2EAB,0xC0977179),new Long(0x22FAC097,0xAA8D5C0E),
 ];
 
-Tiger.t3 = [
+var T3 = [
 	new Long(0xF49FCC2F,0xF1DAF39B),new Long(0x487FD5C6,0x6FF29281),
 	new Long(0xE8A30667,0xFCDCA83F),new Long(0x2C9B4BE3,0xD2FCCE63),
 	new Long(0xDA3FF74B,0x93FBBBC2),new Long(0x2FA165D2,0xFE70BA66),
@@ -498,7 +621,7 @@ Tiger.t3 = [
 	new Long(0xD3DC3BEF,0x265B0F70),new Long(0x6D0E60F5,0xC3578A9E),
 ];
 
-Tiger.t4 = [
+var T4 = [
 	new Long(0x5B0E6085,0x26323C55),new Long(0x1A46C1A9,0xFA1B59F5),
 	new Long(0xA9E245A1,0x7C4C8FFA),new Long(0x65CA5159,0xDB2955D7),
 	new Long(0x05DB0A76,0xCE35AFC2),new Long(0x81EAC77E,0xA9113D45),
@@ -629,99 +752,5 @@ Tiger.t4 = [
 	new Long(0xC83223F1,0x720AEF96),new Long(0xC3A0396F,0x7363A51F)
 ];
 
-Tiger.round = function(a,b,c,x,m)
-{
-	var a0, b0, c0;
-	c0 = Long.xor(c,x);
-	a0 = Long.subtract(a,Long.xor_list([
-		Tiger.t1[c0.get8(0)],Tiger.t2[c0.get8(2)],
-		Tiger.t3[c0.get8(4)],Tiger.t4[c0.get8(6)]]));
-	b0 = Long.add(b,Long.xor_list([
-		Tiger.t4[c0.get8(1)],Tiger.t3[c0.get8(3)],
-		Tiger.t2[c0.get8(5)],Tiger.t1[c0.get8(7)]]));
-	// using add+shift instead gives a speedup of 1.19
-	switch (m) {
-	case 5:  b0 = Long.add(     Long.lshift(b0, 2), b0); break;
-	case 7:  b0 = Long.subtract(Long.lshift(b0, 3), b0); break;
-	case 9:  b0 = Long.add(     Long.lshift(b0, 3), b0); break;
-	default: b0 = Long.multiply(b0, m);
-	}
-	a.n = a0.n;
-	b.n = b0.n;
-	c.n = c0.n;
-}
-Tiger._compress = function(buffer,state)
-{
-	var buf = buffer._buf;
-	var state_buf = state._buf;
-	var a, b, c, tmpa;
-	var aa, bb, cc;
-	var x0, x1, x2, x3, x4, x5, x6, x7;
-	var mul;
-	aa = state_buf[0];
-	bb = state_buf[1];
-	cc = state_buf[2];
-	a = new Long(aa);
-	b = new Long(bb);
-	c = new Long(cc);
-	x0 = buf[0];
-	x1 = buf[1];
-	x2 = buf[2];
-	x3 = buf[3];
-	x4 = buf[4];
-	x5 = buf[5];
-	x6 = buf[6];
-	x7 = buf[7];
-	var _a5 = new Long(0xa5a5a5a5,0xa5a5a5a5);
-	var _01 = new Long(0x01234567,0x89abcdef);
-	for (var i = 0; i < Tiger._NUM_PASSES; i++) {
-		if (i) {
-			/* 'key_schedule' */
-			x0 = Long.subtract(x0,Long.xor(x7,_a5));
-			x1 = Long.xor(x1,x0);
-			x2 = Long.add(x2,x1);
-			x3 = Long.subtract(x3,Long.xor(x2,
-			    Long.lshift(Long.not(x1),19)));
-			x4 = Long.xor(x4,x3);
-			x5 = Long.add(x5,x4);
-			x6 = Long.subtract(x6,Long.xor(x5,
-			    Long.rshift(Long.not(x4),23)));
-			x7 = Long.xor(x7,x6);
-			x0 = Long.add(x0,x7);
-			x1 = Long.subtract(x1,Long.xor(x0,
-			    Long.lshift(Long.not(x7),19)));
-			x2 = Long.xor(x2,x1);
-			x3 = Long.add(x3,x2);
-			x4 = Long.subtract(x4,Long.xor(x3,
-			    Long.rshift(Long.not(x2),23)));
-			x5 = Long.xor(x5,x4);
-			x6 = Long.add(x6,x5);
-			x7 = Long.subtract(x7,Long.xor(x6,_01));
-		}
-
-		/* 'pass' */
-		switch (i) {
-		case 0:		mul = 5; break;
-		case 1:		mul = 7; break;
-		default:	mul = 9;
-		}
-		Tiger.round(a, b, c, x0, mul);
-		Tiger.round(b, c, a, x1, mul);
-		Tiger.round(c, a, b, x2, mul);
-		Tiger.round(a, b, c, x3, mul);
-		Tiger.round(b, c, a, x4, mul);
-		Tiger.round(c, a, b, x5, mul);
-		Tiger.round(a, b, c, x6, mul);
-		Tiger.round(b, c, a, x7, mul);
-
-		tmpa = a;
-		a = c;
-		c = b;
-		b = tmpa;
-	}
-
-	/* 'feed forward' */
-	state_buf[0] = Long.xor(a,aa);
-	state_buf[1] = Long.subtract(b,bb);
-	state_buf[2] = Long.add(c,cc);
-}
+return Tiger;
+})();

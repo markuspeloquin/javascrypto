@@ -12,11 +12,18 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
+var Serpent = (function(){
+
+var BLOCK = 16;		/** The block size in bytes */
+var KEYMIN = 16;	/** The minimum key size */
+var KEYMAX = 32;	/** The maximum key size */
+var KEYSTEP = 8;	/** The separation between key sizes */
+
 /** The Serpent cipher
  * \param key	The symetric key
  * \throws	Bad key size (16, 24, 32 bytes)
  */
-Serpent = function(key)
+function Serpent(key)
 {
 	this.constructor = Serpent;
 
@@ -43,8 +50,7 @@ Serpent = function(key)
 
 	// get w_0 through w_131 (4*33 values)
 	for (i = 0; i < 132; i++)
-		w[i+8] = Serpent.ROL(w[i] ^ w[i+3] ^ w[i+5] ^ w[i+7] ^
-		    Serpent.PHI ^ i, 11);
+		w[i+8] = ROL(w[i] ^ w[i+3] ^ w[i+5] ^ w[i+7] ^ PHI ^ i, 11);
 
 	this.subkeys = new Array(33);
 	var s = this.subkeys;
@@ -59,113 +65,122 @@ Serpent = function(key)
 		sl[2] = w[i+2];
 		sl[3] = w[i+3];
 		switch (j & 7) {
-		case 0: Serpent.sbox_3(sl,s[j]); break;
-		case 1: Serpent.sbox_2(sl,s[j]); break;
-		case 2: Serpent.sbox_1(sl,s[j]); break;
-		case 3: Serpent.sbox_0(sl,s[j]); break;
-		case 4: Serpent.sbox_7(sl,s[j]); break;
-		case 5: Serpent.sbox_6(sl,s[j]); break;
-		case 6: Serpent.sbox_5(sl,s[j]); break;
-		case 7: Serpent.sbox_4(sl,s[j]);
+		case 0: _sbox_3(sl,s[j]); break;
+		case 1: _sbox_2(sl,s[j]); break;
+		case 2: _sbox_1(sl,s[j]); break;
+		case 3: _sbox_0(sl,s[j]); break;
+		case 4: _sbox_7(sl,s[j]); break;
+		case 5: _sbox_6(sl,s[j]); break;
+		case 6: _sbox_5(sl,s[j]); break;
+		case 7: _sbox_4(sl,s[j]);
 		}
 	}
 }
-Serpent.BLOCK = 16;	/** The block size in bytes */
-Serpent.KEYMIN = 16;	/** The minimum key size */
-Serpent.KEYMAX = 32;	/** The maximum key size */
-Serpent.KEYSTEP = 8;	/** The separation between key sizes */
-Serpent.prototype = new Cipher(Serpent.BLOCK);
-Serpent.prototype.encrypt = function(plaintext, ciphertext)
+
+Serpent.BLOCK = BLOCK;
+Serpent.KEYMIN = KEYMIN;
+Serpent.KEYMAX = KEYMAX;
+Serpent.KEYSTEP = KEYSTEP;
+Serpent.prototype = new Cipher(BLOCK);
+
+function encrypt(plaintext, ciphertext)
 {
 	var x = [0,0,0,0];
 	var y = [0,0,0,0];
 	var i;
-	Buffer.basic_copy_be_le(x, 0, plaintext._buf, 0, Serpent.BLOCK);
+	Buffer.basic_copy_be_le(x, 0, plaintext._buf, 0, BLOCK);
 	for (i = 0; i < 31; i++) {
-		Serpent.keying(x,this.subkeys[i]);
+		_keying(x, this.subkeys[i]);
 		switch (i & 7) {
-		case 0: Serpent.sbox_0(x,y); break;
-		case 1: Serpent.sbox_1(x,y); break;
-		case 2: Serpent.sbox_2(x,y); break;
-		case 3: Serpent.sbox_3(x,y); break;
-		case 4: Serpent.sbox_4(x,y); break;
-		case 5: Serpent.sbox_5(x,y); break;
-		case 6: Serpent.sbox_6(x,y); break;
-		case 7: Serpent.sbox_7(x,y);
+		case 0: _sbox_0(x, y); break;
+		case 1: _sbox_1(x, y); break;
+		case 2: _sbox_2(x, y); break;
+		case 3: _sbox_3(x, y); break;
+		case 4: _sbox_4(x, y); break;
+		case 5: _sbox_5(x, y); break;
+		case 6: _sbox_6(x, y); break;
+		case 7: _sbox_7(x, y);
 		}
-		Serpent.transform(y,x);
+		_transform(y, x);
 	}
-	Serpent.keying(x,this.subkeys[31]);
-	Serpent.sbox_7(x,y);
-	Serpent.keying(y,this.subkeys[32]);
+	_keying(x, this.subkeys[31]);
+	_sbox_7(x, y);
+	_keying(y, this.subkeys[32]);
 	ciphertext._buf[0] = 0;
-	Buffer.basic_copy_le_be(ciphertext._buf, 0, y, 0, Serpent.BLOCK);
+	Buffer.basic_copy_le_be(ciphertext._buf, 0, y, 0, BLOCK);
 }
-Serpent.prototype.decrypt = function(ciphertext, plaintext)
+
+function decrypt(ciphertext, plaintext)
 {
 	var x = [0,0,0,0];
 	var y = [0,0,0,0];
 	var i;
-	Buffer.basic_copy_be_le(x, 0, ciphertext._buf, 0, Serpent.BLOCK);
-	Serpent.keying(x,this.subkeys[32]);
-	Serpent.sbox_7_inv(x,y);
-	Serpent.keying(y,this.subkeys[31]);
+	Buffer.basic_copy_be_le(x, 0, ciphertext._buf, 0, BLOCK);
+	_keying(x, this.subkeys[32]);
+	_sbox_7_inv(x, y);
+	_keying(y, this.subkeys[31]);
 	for (i = 30; i > -1; i--) {
-		Serpent.transform_inv(y,x);
+		_transform_inv(y, x);
 		switch (i & 7) {
-		case 0: Serpent.sbox_0_inv(x,y); break;
-		case 1: Serpent.sbox_1_inv(x,y); break;
-		case 2: Serpent.sbox_2_inv(x,y); break;
-		case 3: Serpent.sbox_3_inv(x,y); break;
-		case 4: Serpent.sbox_4_inv(x,y); break;
-		case 5: Serpent.sbox_5_inv(x,y); break;
-		case 6: Serpent.sbox_6_inv(x,y); break;
-		case 7: Serpent.sbox_7_inv(x,y);
+		case 0: _sbox_0_inv(x, y); break;
+		case 1: _sbox_1_inv(x, y); break;
+		case 2: _sbox_2_inv(x, y); break;
+		case 3: _sbox_3_inv(x, y); break;
+		case 4: _sbox_4_inv(x, y); break;
+		case 5: _sbox_5_inv(x, y); break;
+		case 6: _sbox_6_inv(x, y); break;
+		case 7: _sbox_7_inv(x, y);
 		}
-		Serpent.keying(y,this.subkeys[i]);
+		_keying(y, this.subkeys[i]);
 	}
 	plaintext._buf[0] = 0;
-	Buffer.basic_copy_le_be(plaintext._buf, 0, y, 0, Serpent.BLOCK);
+	Buffer.basic_copy_le_be(plaintext._buf, 0, y, 0, BLOCK);
 }
-Serpent.PHI = 0x9e3779b9;
-Serpent.ROL = function(x,n)
+
+var PHI = 0x9e3779b9;
+
+function _ROL(x, n)
 { return (x << n) | (x >>> (32 - n)) }
-Serpent.ROR = function(x,n)
+function _ROR(x, n)
 { return (x >>> n) | (x << (32 - n)) }
-Serpent.transform = function(x,y)
+
+function _transform(x, y)
 {
-	y[0] = Serpent.ROL(x[0], 13);
-	y[2] = Serpent.ROL(x[2], 3);
+	y[0] = _ROL(x[0], 13);
+	y[2] = _ROL(x[2], 3);
 	y[1] = x[1] ^ y[0] ^ y[2];
 	y[3] = x[3] ^ y[2] ^ (y[0] << 3);
-	y[1] = Serpent.ROL(y[1], 1);
-	y[3] = Serpent.ROL(y[3], 7);
+	y[1] = _ROL(y[1], 1);
+	y[3] = _ROL(y[3], 7);
 	y[0] ^= y[1] ^ y[3];
 	y[2] ^= y[3] ^ (y[1] << 7);
-	y[0] = Serpent.ROL(y[0], 5);
-	y[2] = Serpent.ROL(y[2], 22);
+	y[0] = _ROL(y[0], 5);
+	y[2] = _ROL(y[2], 22);
 }
-Serpent.transform_inv = function(x,y)
+
+function _transform_inv(x, y)
 {
-	y[2] = Serpent.ROR(x[2], 22);
-	y[0] = Serpent.ROR(x[0], 5);
+	y[2] = _ROR(x[2], 22);
+	y[0] = _ROR(x[0], 5);
 	y[2] ^= x[3] ^ (x[1] << 7);
 	y[0] ^= x[1] ^ x[3];
-	y[3] = Serpent.ROR(x[3], 7);
-	y[1] = Serpent.ROR(x[1], 1);
+	y[3] = _ROR(x[3], 7);
+	y[1] = _ROR(x[1], 1);
 	y[3] ^= y[2] ^ (y[0] << 3);
 	y[1] ^= y[0] ^ y[2];
-	y[2] = Serpent.ROR(y[2], 3);
-	y[0] = Serpent.ROR(y[0], 13);
+	y[2] = _ROR(y[2], 3);
+	y[0] = _ROR(y[0], 13);
 }
-Serpent.keying = function(x,subkey)
+
+function _keying(x, subkey)
 {
 	x[0] ^= subkey[0];
 	x[1] ^= subkey[1];
 	x[2] ^= subkey[2];
 	x[3] ^= subkey[3];
 }
-Serpent.sbox_0 = function(x,y)
+
+function _sbox_0(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
 	t0 = x[0] | x[3];
@@ -183,7 +198,7 @@ Serpent.sbox_0 = function(x,y)
 	y[1] = ~t9;
 	y[0] = t7 ^ y[1];
 }
-Serpent.sbox_0_inv = function(x,y)
+function _sbox_0_inv(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
 	t0 = x[0] | x[1];
@@ -201,7 +216,7 @@ Serpent.sbox_0_inv = function(x,y)
 	t9 = y[0] | y[3];
 	y[1] = t2 ^ t9;
 }
-Serpent.sbox_1 = function(x,y)
+function _sbox_1(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
 	t0 = ~x[1];
@@ -219,7 +234,7 @@ Serpent.sbox_1 = function(x,y)
 	t9 = t4 & t8;
 	y[0] = t2 ^ t9;
 }
-Serpent.sbox_1_inv = function(x,y)
+function _sbox_1_inv(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
 	t0 = x[1] & x[3];
@@ -237,7 +252,7 @@ Serpent.sbox_1_inv = function(x,y)
 	t9 = t7 | y[0];
 	y[2] = t2 ^ t9;
 }
-Serpent.sbox_2 = function(x,y)
+function _sbox_2(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8;
 	t0 = x[0] & x[2];
@@ -254,7 +269,7 @@ Serpent.sbox_2 = function(x,y)
 	y[1] = t1 ^ t8;
 	y[2] = t7 ^ y[1];
 }
-Serpent.sbox_2_inv = function(x,y)
+function _sbox_2_inv(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
 	t0 = x[0] ^ x[3];
@@ -272,7 +287,7 @@ Serpent.sbox_2_inv = function(x,y)
 	t9 = y[0] & y[2];
 	y[3] = t8 ^ t9;
 }
-Serpent.sbox_3 = function(x,y)
+function _sbox_3(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
 	t0 = x[0] ^ x[2];
@@ -293,7 +308,7 @@ Serpent.sbox_3 = function(x,y)
 	tc = t2 & tb;
 	y[0] = x[1] ^ tc;
 }
-Serpent.sbox_3_inv = function(x,y)
+function _sbox_3_inv(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb;
 	t0 = x[1] ^ x[2];
@@ -313,7 +328,7 @@ Serpent.sbox_3_inv = function(x,y)
 	tb = t2 | t9;
 	y[3] = ta ^ tb;
 }
-Serpent.sbox_4 = function(x,y)
+function _sbox_4(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta;
 	t0 = x[0] ^ x[3];
@@ -332,7 +347,7 @@ Serpent.sbox_4 = function(x,y)
 	ta = t8 & y[2];
 	y[1] = t9 ^ ta;
 }
-Serpent.sbox_4_inv = function(x,y)
+function _sbox_4_inv(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb;
 	t0 = x[2] | x[3];
@@ -352,7 +367,7 @@ Serpent.sbox_4_inv = function(x,y)
 	tb = t9 & ta;
 	y[2] = t8 ^ tb;
 }
-Serpent.sbox_5 = function(x,y)
+function _sbox_5(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta;
 	t0 = x[0] ^ x[1];
@@ -371,7 +386,7 @@ Serpent.sbox_5 = function(x,y)
 	ta = t7 & y[2];
 	y[3] = t9 ^ ta;
 }
-Serpent.sbox_5_inv = function(x,y)
+function _sbox_5_inv(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb;
 	t0 = x[0] & x[3];
@@ -391,7 +406,7 @@ Serpent.sbox_5_inv = function(x,y)
 	tb = y[0] | y[1];
 	y[2] = ta ^ tb;
 }
-Serpent.sbox_6 = function(x,y)
+function _sbox_6(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9;
 	t0 = x[0] & x[3];
@@ -409,7 +424,7 @@ Serpent.sbox_6 = function(x,y)
 	t9 = t4 & t8;
 	y[3] = t1 ^ t9;
 }
-Serpent.sbox_6_inv = function(x,y)
+function _sbox_6_inv(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta;
 	t0 = ~x[2];
@@ -428,7 +443,7 @@ Serpent.sbox_6_inv = function(x,y)
 	ta = t2 ^ t9;
 	y[2] = ~ta;
 }
-Serpent.sbox_7 = function(x,y)
+function _sbox_7(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
 	t0 = x[1] ^ x[2];
@@ -449,7 +464,7 @@ Serpent.sbox_7 = function(x,y)
 	tc = t0 | tb;
 	y[0] = ta ^ tc;
 }
-Serpent.sbox_7_inv = function(x,y)
+function _sbox_7_inv(x, y)
 {
 	var t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta, tb, tc;
 	t0 = x[0] & x[1];
@@ -470,3 +485,15 @@ Serpent.sbox_7_inv = function(x,y)
 	tc = x[0] | y[3];
 	y[2] = tb ^ tc;
 }
+
+function _connect(dest, functions)
+{
+	for (var i = 0; i < functions.length; i++) {
+		var f = functions[i];
+		dest[f.name] = f;
+	}
+}
+_connect(Serpent.prototype, [ encrypt, decrypt ]);
+
+return Serpent;
+})();

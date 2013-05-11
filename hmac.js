@@ -12,23 +12,27 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
+var Hmac = (function(){
+
+var IPAD = 0x36363636;
+var OPAD = 0x5c5c5c5c;
+
 /** Create a HMAC function
  * \param hashfn A hash function object
  */
-Hmac = function(hashfn)
+function Hmac(hashfn)
 {
 	this.constructor = Hmac;
 	this._fn = hashfn;
 	this._key = Buffer.create_zeros32(hashfn.block_size()>>2);
 }
-Hmac.IPAD = 0x36363636;
-Hmac.OPAD = 0x5c5c5c5c;
 Hmac.prototype = {};
+
 /** Initialize the HMAC context
  * \param key	BE key
  * \param sz	Key length in bytes
  */
-Hmac.prototype.init = function(key, sz)
+function init(key, sz)
 {
 	var i;
 	var sz_block = this._fn.block_size();
@@ -53,16 +57,18 @@ Hmac.prototype.init = function(key, sz)
 	this._fn.init();
 	this._fn.update(key_ipad, sz_block);
 }
+
 /** Add data to the HMAC computation
  * \param buf	BE buffer 
  * \param sz	Length of buffer in bytes
  */
-Hmac.prototype.update = function(buf, sz)
+function update(buf, sz)
 {
 	this._fn.update(buf, sz);
 }
+
 /** Return the result of the HMAC computation */
-Hmac.prototype.end = function()
+function end()
 {
 	var i;
 	var sz_block = this._fn.block_size();
@@ -79,9 +85,29 @@ Hmac.prototype.end = function()
 	this._fn.update(mid_digest, sz_digest);
 	return this._fn.end();
 }
+
 /** The block size of the hash function */
-Hmac.prototype.block_size = function()
+function block_size()
 { return this._fn.block_size() }
+
 /** The digest size of the hash function */
-Hmac.prototype.digest_size = function()
+function digest_size()
 { return this._fn.digest_size() }
+
+function _connect(dest, functions)
+{
+	for (var i = 0; i < functions.length; i++) {
+		var f = functions[i];
+		dest[f.name] = f;
+	}
+}
+_connect(Tiger.prototype, [
+	block_size,
+	digest_size,
+	end,
+	init,
+	update,
+]);
+
+return Hmac;
+})();

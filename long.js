@@ -12,13 +12,15 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
+var Long = (function(){
+
 /** Create a 64-bit integer
  * 
  * Two arguments: (a << 32 | b)
  * One argument: a
  * No arguments: 0
  */
-Long = function(a,b)
+function Long(a, b)
 {
 	this.constructor = Long;
 	switch (arguments.length) {
@@ -42,28 +44,32 @@ Long = function(a,b)
 	}
 }
 Long.prototype = {};
-Long.prototype.toString = function()
-{
-	var res = '';
-	for (var i = 0; i < 4; i++) {
-		var s = this.n[i].toString(16);
-		while (s.length < 4) s = '0' + s;
-		res += s;
-	}
-	return res;
-}
+
 // n=0: least-significant
-Long.prototype.get8 = function(n)
+function get8(n)
 {
 	return (this.n[(n>>>1) ^ 3] >> ((n & 1) << 3)) & 0xff;
 }
-Long.prototype.get16 = function(n)
+
+function get16(n)
 {
 	return this.n[n ^ 3];
 }
+
+function toString()
+{
+	var res = [];
+	for (var i = 0; i < 4; i++) {
+		var s = this.n[i].toString(16);
+		while (s.length < 4) res.push('0');
+		res.push(s);
+	}
+	return res.join('');
+}
+
 /** Return sum of two Long
  * \param carry[optional] 0 or 1*/
-Long.add = function(a,b,carry)
+function add(a, b, carry)
 {
 	carry = carry || 0;
 	var n = new Long;
@@ -74,20 +80,23 @@ Long.add = function(a,b,carry)
 	}
 	return n;
 }
+
 /** Return difference of two Long */
-Long.subtract = function(a,b)
+function subtract(a, b)
 {
 	return Long.add(a, Long.not(b), 1);
 }
+
 /** Return XOR of two Long */
-Long.xor = function(a,b)
+function xor(a, b)
 {
 	var t = new Long;
 	for (var i = 0; i < 4; i++)
 		t.n[i] = a.n[i] ^ b.n[i];
 	return t;
 }
-Long.xor_list = function(lst)
+
+function xor_list(lst)
 {
 	switch (lst.length) {
 	case 0: return new Long;
@@ -98,32 +107,36 @@ Long.xor_list = function(lst)
 		res = Long.xor(res, lst[i]);
 	return res;
 }
+
 /** Return AND of two Long */
-Long.and = function(a,b)
+function and(a, b)
 {
 	var t = new Long;
 	for (var i = 0; i < 4; i++)
 		t.n[i] = a.n[i] & b.n[i];
 	return t;
 }
+
 /** Return OR of two long */
-Long.or = function(a,b)
+function or(a, b)
 {
 	var t = new Long;
 	for (var i = 0; i < 4; i++)
 		t.n[i] = a.n[i] | b.n[i];
 	return t;
 }
+
 /** Return NOT of a Long */
-Long.not = function(a)
+function not(a)
 {
 	var t = new Long;
 	for (var i = 0; i < 4; i++)
 		t.n[i] = ~a.n[i] & 0xffff;
 	return t;
 }
+
 /** Return LSHIFT of a Long (b is integer) */
-Long.lshift = function(a,b)
+function lshift(a, b)
 {
 	if (b > 16)
 		return Long.lshift(Long.lshift(a,16),b-16);
@@ -136,8 +149,9 @@ Long.lshift = function(a,b)
 	}
 	return t;
 }
+
 /** Return RSHIFT of a Long (b is integer) */
-Long.rshift = function(a,b)
+function rshift(a, b)
 {
 	if (b > 16)
 		return Long.rshift(Long.rshift(a,16),b-16);
@@ -150,8 +164,9 @@ Long.rshift = function(a,b)
 	}
 	return t;
 }
+
 /** Return product of a Long (a) and an integer (b) */
-Long.multiply = function(a,b)
+function multiply(a, b)
 {
 	var t = new Long;
 	while (b) {
@@ -161,3 +176,33 @@ Long.multiply = function(a,b)
 	}
 	return t;
 }
+
+function _connect(dest, functions)
+{
+	for (var i = 0; i < functions.length; i++) {
+		var f = functions[i];
+		dest[f.name] = f;
+	}
+}
+
+_connect(Long, [
+	add,
+	and,
+	lshift,
+	multiply,
+	not,
+	or,
+	rshift,
+	subtract,
+	xor,
+	xor_list,
+]);
+
+_connect(Long.prototype, [
+	get8,
+	get16,
+	toString,
+]);
+
+return Long;
+})();

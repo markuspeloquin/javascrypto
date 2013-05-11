@@ -12,6 +12,8 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
+var pbkdf2 = (function(){
+
 /** Password-based key derivation function
  * \param hmacfn	Hmac object.
  * \param passwd	Password
@@ -43,6 +45,7 @@ function pbkdf2(hmacfn, passwd, passwdsz, salt, saltsz, iter, szkey)
 
 	return res;
 }
+
 // PBKDF2's F function
 function pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, index,
     res, resoff)
@@ -67,3 +70,6 @@ function pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, index,
 			res._buf[resoff+j] ^= u[j];
 	}
 }
+
+return pbkdf2;
+})();

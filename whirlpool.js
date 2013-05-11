@@ -12,7 +12,12 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
-Whirlpool = function()
+var Whirlpool = (function(){
+
+var BLOCK = 64;
+var DIGEST = 64;
+
+function Whirlpool()
 {
 	this.constructor = Whirlpool;
 	// hashing state
@@ -22,12 +27,18 @@ Whirlpool = function()
 	// data to hash
 	this._buf = Buffer.create_zeros32(16);
 }
-Whirlpool.BLOCK = 64;
-Whirlpool.DIGEST = 64;
+Whirlpool.BLOCK = BLOCK;
+Whirlpool.DIGEST = DIGEST;
 Whirlpool.prototype = new Hash();
 
+function digest_size()
+{ return DIGEST }
+
+function block_size()
+{ return BLOCK }
+
 /** Initialize/reset a whirlpool context. */
-Whirlpool.prototype.init = function()
+function init()
 {
 	new Buffer(this._hash).zero32();
 	new Buffer(this._bit_count).zero32();
@@ -39,13 +50,13 @@ Whirlpool.prototype.init = function()
  * \param buf	The data to be appended (big endian).
  * \param sz	Size of data in bytes.
  */
-Whirlpool.prototype.update = function(buf, sz)
+function update(buf, sz)
 {
 	// this function maintains the invariant: pos < WBLOCKBYTES
 
-	this._increment_count(sz);
+	_increment_count(this, sz);
 
-	if (this._pos + sz < Whirlpool.BLOCK) {
+	if (this._pos + sz < BLOCK) {
 		// buffer will not fill
 		this._buf.copy(this._pos, buf, 0, sz);
 		this._pos += sz;
@@ -53,18 +64,18 @@ Whirlpool.prototype.update = function(buf, sz)
 	}
 
 	// do first (full) block
-	var bytes = Whirlpool.BLOCK - this._pos;
+	var bytes = BLOCK - this._pos;
 	this._buf.copy(this._pos, buf, 0, bytes);
-	this._process_buf();
+	_process_buf(this);
 	var srcpos = bytes;
 	sz -= bytes;
 
 	// do subsequent (full) blocks
-	while (sz >= Whirlpool.BLOCK) {
-		this._buf.copy(0, buf, srcpos, Whirlpool.BLOCK);
-		this._process_buf();
-		srcpos += Whirlpool.BLOCK;
-		sz -= Whirlpool.BLOCK;
+	while (sz >= BLOCK) {
+		this._buf.copy(0, buf, srcpos, BLOCK);
+		_process_buf(this);
+		srcpos += BLOCK;
+		sz -= BLOCK;
 	}
 
 	// copy next partial block for later
@@ -76,7 +87,7 @@ Whirlpool.prototype.update = function(buf, sz)
 /** Finish computation
  * \return The digest
  */
-Whirlpool.prototype.end = function()
+function end()
 {
 	var i;
 	// this function uses the invariant: pos < WBLOCKBYTES
@@ -84,22 +95,22 @@ Whirlpool.prototype.end = function()
 	// append the bit pattern 100000...
 	this._buf.set32(this._pos++, 0x80);
 
-	if (this._pos + Whirlpool._LENGTH_BYTES > Whirlpool.BLOCK) {
+	if (this._pos + LENGTH_BYTES > BLOCK) {
 		// no room to fit the bit count; that will go in the next
 		// block; fill remainder with zeros
-		while (this._pos < Whirlpool.BLOCK)
+		while (this._pos < BLOCK)
 			this._buf.set32(this._pos++, 0);
-		this._process_buf();
+		_process_buf(this);
 		this._pos = 0;
 	}
 	// pad middle with zeros
-	while (this._pos < Whirlpool.BLOCK - Whirlpool._LENGTH_BYTES)
+	while (this._pos < BLOCK - LENGTH_BYTES)
 		this._buf.set32(this._pos++, 0);
 
-	this._append_count();
+	_append_count(this);
 
 	// process final data block
-	this._process_buf();
+	_process_buf(this);
 
 	// return digest
 	var res = new Array(16);
@@ -107,7 +118,7 @@ Whirlpool.prototype.end = function()
 	return new Buffer(res);
 }
 
-Whirlpool.c_0 = [
+var C_0 = [
 	0x18186018,0xc07830d8,0x23238c23,0x05af4626,
 	0xc6c63fc6,0x7ef991b8,0xe8e887e8,0x136fcdfb,
 	0x87872687,0x4ca113cb,0xb8b8dab8,0xa9626d11,
@@ -238,7 +249,7 @@ Whirlpool.c_0 = [
 	0xf8f8c7f8,0x933fed6b,0x86862286,0x44a411c2
 ];
 
-Whirlpool.c_1 = [
+var C_1 = [
 	0xd8181860,0x18c07830,0x2623238c,0x2305af46,
 	0xb8c6c63f,0xc67ef991,0xfbe8e887,0xe8136fcd,
 	0xcb878726,0x874ca113,0x11b8b8da,0xb8a9626d,
@@ -369,7 +380,7 @@ Whirlpool.c_1 = [
 	0x6bf8f8c7,0xf8933fed,0xc2868622,0x8644a411
 ];
 
-Whirlpool.c_2 = [
+var C_2 = [
 	0x30d81818,0x6018c078,0x46262323,0x8c2305af,
 	0x91b8c6c6,0x3fc67ef9,0xcdfbe8e8,0x87e8136f,
 	0x13cb8787,0x26874ca1,0x6d11b8b8,0xdab8a962,
@@ -500,7 +511,7 @@ Whirlpool.c_2 = [
 	0xed6bf8f8,0xc7f8933f,0x11c28686,0x228644a4
 ];
 
-Whirlpool.c_3 = [
+var C_3 = [
 	0x7830d818,0x186018c0,0xaf462623,0x238c2305,
 	0xf991b8c6,0xc63fc67e,0x6fcdfbe8,0xe887e813,
 	0xa113cb87,0x8726874c,0x626d11b8,0xb8dab8a9,
@@ -631,7 +642,7 @@ Whirlpool.c_3 = [
 	0x3fed6bf8,0xf8c7f893,0xa411c286,0x86228644
 ];
 
-Whirlpool.c_4 = [
+var C_4 = [
 	0xc07830d8,0x18186018,0x05af4626,0x23238c23,
 	0x7ef991b8,0xc6c63fc6,0x136fcdfb,0xe8e887e8,
 	0x4ca113cb,0x87872687,0xa9626d11,0xb8b8dab8,
@@ -762,7 +773,7 @@ Whirlpool.c_4 = [
 	0x933fed6b,0xf8f8c7f8,0x44a411c2,0x86862286
 ];
 
-Whirlpool.c_5 = [
+var C_5 = [
 	0x18c07830,0xd8181860,0x2305af46,0x2623238c,
 	0xc67ef991,0xb8c6c63f,0xe8136fcd,0xfbe8e887,
 	0x874ca113,0xcb878726,0xb8a9626d,0x11b8b8da,
@@ -893,7 +904,7 @@ Whirlpool.c_5 = [
 	0xf8933fed,0x6bf8f8c7,0x8644a411,0xc2868622
 ];
 
-Whirlpool.c_6 = [
+var C_6 = [
 	0x6018c078,0x30d81818,0x8c2305af,0x46262323,
 	0x3fc67ef9,0x91b8c6c6,0x87e8136f,0xcdfbe8e8,
 	0x26874ca1,0x13cb8787,0xdab8a962,0x6d11b8b8,
@@ -1024,7 +1035,7 @@ Whirlpool.c_6 = [
 	0xc7f8933f,0xed6bf8f8,0x228644a4,0x11c28686
 ];
 
-Whirlpool.c_7 = [
+var C_7 = [
 	0x186018c0,0x7830d818,0x238c2305,0xaf462623,
 	0xc63fc67e,0xf991b8c6,0xe887e813,0x6fcdfbe8,
 	0x8726874c,0xa113cb87,0xb8dab8a9,0x626d11b8,
@@ -1155,7 +1166,7 @@ Whirlpool.c_7 = [
 	0xf8c7f893,0x3fed6bf8,0x86228644,0xa411c286
 ];
 
-Whirlpool.rc = [
+var RC = [
 	0x1823c6e8,0x87b8014f,0x36a6d2f5,0x796f9152,
 	0x60bc9b8e,0xa30c7b35,0x1de0d7c2,0x2e4bfe57,
 	0x157737e5,0x9ff04ada,0x58c9290a,0xb1a06b85,
@@ -1164,14 +1175,13 @@ Whirlpool.rc = [
 ];
 
 // bytes in 'bit_count'
-Whirlpool._LENGTH_BYTES = 32;
+var LENGTH_BYTES = 32;
 
 // the number of rounds of the internal dedicated block cipher
-Whirlpool.ROUNDS = 10;
+var ROUNDS = 10;
 
-Whirlpool.c_arrs = [Whirlpool.c_0, Whirlpool.c_1, Whirlpool.c_2, Whirlpool.c_3,
-    Whirlpool.c_4, Whirlpool.c_5, Whirlpool.c_6, Whirlpool.c_7]; 
-Whirlpool.compute_l = function(L, A, idx)
+var C_ARRS = [C_0, C_1, C_2, C_3, C_4, C_5, C_6, C_7]; 
+function _compute_l(L, A, idx)
 {
 	var i, j, shift = 24;
 	var L_idx = idx << 1;
@@ -1179,8 +1189,8 @@ Whirlpool.compute_l = function(L, A, idx)
 	L[L_idx] = L[L_idx+1] = 0;
 	for (i = 0; i < 8; i++) {
 		j = ((A[A_idx] >>> shift) & 0xff) << 1;
-		L[L_idx]   ^= Whirlpool.c_arrs[i][j];
-		L[L_idx+1] ^= Whirlpool.c_arrs[i][j+1];
+		L[L_idx]   ^= C_ARRS[i][j];
+		L[L_idx+1] ^= C_ARRS[i][j+1];
 
 		if (i != 3) {
 			A_idx -= 2;
@@ -1194,14 +1204,14 @@ Whirlpool.compute_l = function(L, A, idx)
 }
 
 // the core Whirlpool transform
-Whirlpool.prototype._process_buf = function()
+function _process_buf(ctx)
 {
 	var K = new Array(16);		// the round key
 	var block = new Array(16);	// mu(buffer)
 	var state = new Array(16);	// the cipher state
 	var L = new Array(16);
-	var buf = this._buf._buf;
-	var hash = this._hash;
+	var buf = ctx._buf._buf;
+	var hash = ctx._hash;
 	var i, j, k;
 
 	// compute and apply K_0 to the cipher state
@@ -1210,31 +1220,29 @@ Whirlpool.prototype._process_buf = function()
 		state[i] = buf[i] ^ K[i];
 	}
 
-	var Wp = Whirlpool;
-
 	// iterate over all rounds
-	for (i = 0, j = 0; i < Whirlpool.ROUNDS; i++, j+=2) {
+	for (i = 0, j = 0; i < ROUNDS; i++, j+=2) {
 		// compute K_i from K_{i-1}
-		Wp.compute_l(L,K,0);
-		L[0] ^= Wp.rc[j];
-		L[1] ^= Wp.rc[j+1];
-		Wp.compute_l(L,K,1);
-		Wp.compute_l(L,K,2);
-		Wp.compute_l(L,K,3);
-		Wp.compute_l(L,K,4);
-		Wp.compute_l(L,K,5);
-		Wp.compute_l(L,K,6);
-		Wp.compute_l(L,K,7);
+		_compute_l(L,K,0);
+		L[0] ^= RC[j];
+		L[1] ^= RC[j+1];
+		_compute_l(L,K,1);
+		_compute_l(L,K,2);
+		_compute_l(L,K,3);
+		_compute_l(L,K,4);
+		_compute_l(L,K,5);
+		_compute_l(L,K,6);
+		_compute_l(L,K,7);
 		for (k = 0; k < 16; k++) K[k] = L[k];
 		// apply the i-th round transformation
-		Wp.compute_l(L,state,0);
-		Wp.compute_l(L,state,1);
-		Wp.compute_l(L,state,2);
-		Wp.compute_l(L,state,3);
-		Wp.compute_l(L,state,4);
-		Wp.compute_l(L,state,5);
-		Wp.compute_l(L,state,6);
-		Wp.compute_l(L,state,7);
+		_compute_l(L,state,0);
+		_compute_l(L,state,1);
+		_compute_l(L,state,2);
+		_compute_l(L,state,3);
+		_compute_l(L,state,4);
+		_compute_l(L,state,5);
+		_compute_l(L,state,6);
+		_compute_l(L,state,7);
 		for (k = 0; k < 16; k++) state[k] = L[k] ^ K[k];
 	}
 	// apply the Miyaguchi-Preneel compression function
@@ -1242,9 +1250,9 @@ Whirlpool.prototype._process_buf = function()
 		hash[i] ^= state[i] ^ buf[i];
 }
 
-Whirlpool.prototype._increment_count = function(sz)
+function _increment_count(ctx, sz)
 {
-	var bit_count = this._bit_count;
+	var bit_count = ctx._bit_count;
 
 	var val = Long.lshift(new Long(sz),3);
 	var sum;
@@ -1256,11 +1264,30 @@ Whirlpool.prototype._increment_count = function(sz)
 }
 
 // append bit length of hashed data
-Whirlpool.prototype._append_count = function()
+function _append_count()
 {
 	// compress bit_count to _buf
-	var bc = this._bit_count;
-	var buf = this._buf._buf;
+	var bc = ctx._bit_count;
+	var buf = ctx._buf._buf;
 	for (var i = 0, j = 0; i < 8; i++, j += 2)
 		buf[i+8] = (bc[j] << 16) | bc[j+1];
 }
+
+function _connect(dest, functions)
+{
+	for (var i = 0; i < functions.length; i++) {
+		var f = functions[i];
+		dest[f.name] = f;
+	}
+}
+
+_connect(Whirlpool.prototype, [
+	block_size,
+	digest_size,
+	end,
+	init,
+	update,
+]);
+
+return Whirlpool;
+})();
