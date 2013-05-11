@@ -50,7 +50,7 @@ function Serpent(key)
 
 	// get w_0 through w_131 (4*33 values)
 	for (i = 0; i < 132; i++)
-		w[i+8] = ROL(w[i] ^ w[i+3] ^ w[i+5] ^ w[i+7] ^ PHI ^ i, 11);
+		w[i+8] = _ROL(w[i] ^ w[i+3] ^ w[i+5] ^ w[i+7] ^ PHI ^ i, 11);
 
 	this.subkeys = new Array(33);
 	var s = this.subkeys;

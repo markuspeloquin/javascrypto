@@ -1264,7 +1264,7 @@ function _increment_count(ctx, sz)
 }
 
 // append bit length of hashed data
-function _append_count()
+function _append_count(ctx)
 {
 	// compress bit_count to _buf
 	var bc = ctx._bit_count;

@@ -101,7 +101,7 @@ function _connect(dest, functions)
 		dest[f.name] = f;
 	}
 }
-_connect(Tiger.prototype, [
+_connect(Hmac.prototype, [
 	block_size,
 	digest_size,
 	end,

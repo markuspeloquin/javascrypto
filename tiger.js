@@ -31,7 +31,7 @@ function Tiger(/*optional*/version)
 
 Tiger.BLOCK = BLOCK;
 Tiger.DIGEST = DIGEST;
-tiger.prototype = new Hash;
+Tiger.prototype = new Hash;
 
 function init()
 {
