@@ -33,7 +33,7 @@ Crypt.prototype = {};
  */
 Crypt.prototype.encrypt = function(plaintext, sz)
 {
-	if (sz > plaintext.length * 4) sz = plaintext.length * 4;
+	if (sz > plaintext._buf.length * 4) sz = plaintext._buf.length * 4;
 
 	var i, j;
 	var sz_blk = this._cipher.block_size();
@@ -64,7 +64,7 @@ Crypt.prototype.encrypt = function(plaintext, sz)
 
 			this._cipher.encrypt(pre, buf);
 			for (j = 0; j < sz_blk_4; j++)
-				res.push(buf[j] ^ plaintext[pos + j]);
+				res.push(buf[j] ^ plaintext._buf[pos + j]);
 
 			pos += sz_blk_4;
 		}
@@ -75,9 +75,9 @@ Crypt.prototype.encrypt = function(plaintext, sz)
 
 			this._cipher.encrypt(pre, buf);
 			for (i = 0; i < left>>2; i++)
-				res.push(buf[i] ^ plaintext[pos + i]);
+				res.push(buf[i] ^ plaintext._buf[pos + i]);
 			if (left < sz_blk) {
-				var x = buf[i] ^ plaintext[pos + i];
+				var x = buf[i] ^ plaintext._buf[pos + i];
 				switch (left & 3) {
 				case 1: x &= 0xff000000; break;
 				case 2: x &= 0xffff0000; break;
@@ -90,7 +90,8 @@ Crypt.prototype.encrypt = function(plaintext, sz)
 	default:
 		throw 'No such block mode';
 	}
-	return res;
+
+	return new Buffer(res);
 }
 
 /** Decrypt data

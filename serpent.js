@@ -25,19 +25,20 @@ Serpent = function(key)
 	// w starts at offset 8
 	var w = new Array(8 + 4 * 33);
 	var i;
-	var sz = key.length * 4;
+	var key_buf = key._buf;
+	var sz = key_buf.length * 4;
 
 	if (sz != 16 && sz != 24 && sz != 32)
 		throw 'Serpent: Bad key size';
 
 	// internal representation is little-endian
 	w[0] = 0;
-	Buffer.copy_be_le(w, 0, key, 0, sz);
+	Buffer.basic_copy_be_le(w, 0, key_buf, 0, sz);
 	if (sz < 32) {
 		// fill the remainder with the binary pattern b10000..., but
 		// reversed
-		w[key.length] = 1;
-		for (i = key.length + 1; i < 8; i++) w[i] = 0;
+		w[key_buf.length] = 1;
+		for (i = key_buf.length + 1; i < 8; i++) w[i] = 0;
 	}
 
 	// get w_0 through w_131 (4*33 values)
@@ -79,7 +80,7 @@ Serpent.prototype.encrypt = function(plaintext, ciphertext)
 	var x = [0,0,0,0];
 	var y = [0,0,0,0];
 	var i;
-	Buffer.copy_be_le(x, 0, plaintext, 0, Serpent.BLOCK);
+	Buffer.basic_copy_be_le(x, 0, plaintext._buf, 0, Serpent.BLOCK);
 	for (i = 0; i < 31; i++) {
 		Serpent.keying(x,this.subkeys[i]);
 		switch (i & 7) {
@@ -97,15 +98,15 @@ Serpent.prototype.encrypt = function(plaintext, ciphertext)
 	Serpent.keying(x,this.subkeys[31]);
 	Serpent.sbox_7(x,y);
 	Serpent.keying(y,this.subkeys[32]);
-	ciphertext[0] = 0;
-	Buffer.copy_le_be(ciphertext, 0, y, 0, Serpent.BLOCK);
+	ciphertext._buf[0] = 0;
+	Buffer.basic_copy_le_be(ciphertext._buf, 0, y, 0, Serpent.BLOCK);
 }
 Serpent.prototype.decrypt = function(ciphertext, plaintext)
 {
 	var x = [0,0,0,0];
 	var y = [0,0,0,0];
 	var i;
-	Buffer.copy_be_le(x, 0, ciphertext, 0, Serpent.BLOCK);
+	Buffer.basic_copy_be_le(x, 0, ciphertext._buf, 0, Serpent.BLOCK);
 	Serpent.keying(x,this.subkeys[32]);
 	Serpent.sbox_7_inv(x,y);
 	Serpent.keying(y,this.subkeys[31]);
@@ -123,8 +124,8 @@ Serpent.prototype.decrypt = function(ciphertext, plaintext)
 		}
 		Serpent.keying(y,this.subkeys[i]);
 	}
-	plaintext[0] = 0;
-	Buffer.copy_le_be(plaintext, 0, y, 0, Serpent.BLOCK);
+	plaintext._buf[0] = 0;
+	Buffer.basic_copy_le_be(plaintext._buf, 0, y, 0, Serpent.BLOCK);
 }
 Serpent.PHI = 0x9e3779b9;
 Serpent.ROL = function(x,n)

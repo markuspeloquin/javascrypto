@@ -55,13 +55,13 @@ function run_hash_test(test, run_time)
 	var timer = new Timer();
 	hashfn.init();
 	if (msg != null) {
-		var buf = Buffer.from_ascii(msg);
+		var buf = Buffer.from_text(msg);
 		hashfn.update(buf, msg.length);
 	} else {
 		test.generator(hashfn);
 	}
 	var digest = hashfn.end();
-	var digest_hex = Buffer.as_hex(digest);
+	var digest_hex = digest.as_hex();
 	add_run_time(run_time, group, timer.read());
 
 	digest_hex = digest_hex.toLowerCase();
@@ -89,7 +89,7 @@ function run_serpent_test(testnum, key, ct, pt, type, encrypt, run_time)
 	cipher = new Serpent(Buffer.from_hex(key));
 
 	iter = type == 'monte_carlo' ? 10000 : 1;
-	buf = [0,0,0,0];
+	buf = Buffer.create_zeros32(4);
 	if (encrypt) {
 		correct = ct;
 		cipher.encrypt(pt, buf);
@@ -131,9 +131,8 @@ function run_serpent_test(testnum, key, ct, pt, type, encrypt, run_time)
 	if (success)
 		msg_print(msg + 'PASS');
 	else
-		msg_print(msg + 'FAIL correct:' +
-		    Buffer.as_hex(correct) + ' result:' +
-		    Buffer.as_hex(buf));
+		msg_print(msg + 'FAIL correct:' + correct.as_hex() +
+		    ' result:' + buf.as_hex());
 }
 
 function checkbox_value(id)
@@ -215,9 +214,9 @@ function start_tests()
 		    testnum: 7,
 		    generator: function (hashfn) {
 			var bufs = [
-			    Buffer.from_ascii(alphabet.toUpperCase()),
-			    Buffer.from_ascii(alphabet),
-			    Buffer.from_ascii(digits)
+			    Buffer.from_text(alphabet.toUpperCase()),
+			    Buffer.from_text(alphabet),
+			    Buffer.from_text(digits)
 			];
 			hashfn.update(bufs[0], alphabet.length);
 			hashfn.update(bufs[1], alphabet.length);
@@ -230,7 +229,7 @@ function start_tests()
 		    group: 'tiger',
 		    testnum: 8,
 		    generator: function (hashfn) {
-			    var buf = Buffer.from_ascii('1234567890');
+			    var buf = Buffer.from_text('1234567890');
 			    for (var i = 0; i < 8; i++)
 				    hashfn.update(buf, 10);
 		    },
@@ -243,7 +242,7 @@ function start_tests()
 		    group: 'tiger',
 		    testnum: 9,
 		    generator: function (hashfn) {
-			    var buf = Buffer.from_ascii('aaaaaaaaaa');
+			    var buf = Buffer.from_text('aaaaaaaaaa');
 			    for (var i = 0; i < 100000; i++)
 				    hashfn.update(buf, 10);
 		    },
@@ -312,9 +311,9 @@ function start_tests()
 		    testnum: 6,
 		    generator: function (hashfn) {
 			var bufs = [
-			    Buffer.from_ascii(alphabet.toUpperCase()),
-			    Buffer.from_ascii(alphabet),
-			    Buffer.from_ascii(digits)
+			    Buffer.from_text(alphabet.toUpperCase()),
+			    Buffer.from_text(alphabet),
+			    Buffer.from_text(digits)
 			];
 			hashfn.update(bufs[0], alphabet.length);
 			hashfn.update(bufs[1], alphabet.length);
@@ -331,7 +330,7 @@ function start_tests()
 		    group: 'whirlpool',
 		    testnum: 7,
 		    generator: function (hashfn) {
-			    var buf = Buffer.from_ascii('1234567890');
+			    var buf = Buffer.from_text('1234567890');
 			    for (var i = 0; i < 8; i++)
 				    hashfn.update(buf, 10);
 		    },
@@ -359,7 +358,7 @@ function start_tests()
 		    group: 'whirlpool',
 		    testnum: 9,
 		    generator: function (hashfn) {
-			    var buf = Buffer.from_ascii('aaaaaaaaaa');
+			    var buf = Buffer.from_text('aaaaaaaaaa');
 			    for (var i = 0; i < 100000; i++)
 				    hashfn.update(buf, 10);
 		    },

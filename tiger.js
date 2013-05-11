@@ -19,7 +19,7 @@ Tiger = function(/*optional*/version)
 {
 	this.constructor = Tiger;
 	// default to 1
-	this._buf = Buffer.zeros32(Tiger.BLOCK/4);
+	this._buf = Buffer.create_zeros32(Tiger.BLOCK/4);
 	this._version = (arguments.length && version == 2) ? 2 : 1;
 }
 Tiger.BLOCK = 64;	/**< Block size in bytes */
@@ -28,22 +28,22 @@ Tiger.prototype = new Hash();
 
 Tiger.prototype.init = function()
 {
-	this._res = [new Long(0x01234567,0x89abcdef),
-	    new Long(0xfedcba98,0x76543210),new Long(0xf096a5b4,0xc3b2e187)];
+	this._res = new Buffer([new Long(0x01234567,0x89abcdef),
+	    new Long(0xfedcba98,0x76543210),new Long(0xf096a5b4,0xc3b2e187)]);
 	this._length = new Long;
 	this._sz = 0;
 }
 Tiger.prototype.update = function(buf, sz)
 {
-	if (sz > buf.length*4) sz = buf.length*4;
-	var temp = Buffer.zeros64(Tiger.BLOCK/8);
+	if (sz > buf._buf.length*4) sz = buf._buf.length*4;
+	var temp = Buffer.create_zeros64(Tiger.BLOCK/8);
 	var src = 0; // pos
 
 	this._length = Long.add(this._length, new Long(sz));
 
 	if (this._sz + sz < Tiger.BLOCK) {
 		// buffer won't fill
-		Buffer.copy(this._buf, this._sz, buf, src, sz);
+		this._buf.copy(this._sz, buf, src, sz);
 		this._sz += sz;
 		return;
 	}
@@ -51,51 +51,51 @@ Tiger.prototype.update = function(buf, sz)
 	// if data remaining in ctx
 	if (this._sz) {
 		var bytes = Tiger.BLOCK - this._sz;
-		Buffer.copy(this._buf, this._sz, buf, src, bytes);
-		Buffer.copy_be_le(temp, 0, this._buf, 0, Tiger.BLOCK);
-		Tiger.compress(temp, this._res);
+		this._buf.copy(this._sz, buf, src, bytes);
+		temp.copy_be_le(0, this._buf, 0, Tiger.BLOCK);
+		Tiger._compress(temp, this._res);
 		src += bytes;
 		sz -= bytes;
 		// context buffer now empty
 	}
 
 	while (sz >= Tiger.BLOCK) {
-		Buffer.copy_be_le(temp, 0, buf, src, Tiger.BLOCK);
-		Tiger.compress(temp, this._res);
+		temp.copy_be_le(0, buf, src, Tiger.BLOCK);
+		Tiger._compress(temp, this._res);
 		src += Tiger.BLOCK;
 		sz -= Tiger.BLOCK;
 	}
 
 	if (sz)
 		// fill context buffer with the remaining bytes
-		Buffer.copy(this._buf, 0, buf, src, sz);
+		this._buf.copy(0, buf, src, sz);
 	this._sz = sz;
 }
 Tiger.prototype.end = function()
 {
-	var temp = Buffer.zeros64(Tiger.BLOCK/8);
+	var temp = Buffer.create_zeros64(Tiger.BLOCK/8);
 	var i;
 
-	Buffer.copy_be_le(temp, 0, this._buf, 0, this._sz);
+	temp.copy_be_le(0, this._buf, 0, this._sz);
 
 	i = this._sz;
-	Buffer.set64(temp, i++ ^ 7, this._version == 1 ? 0x01: 0x80);
-	while (i & 7) Buffer.set64(temp, i++ ^ 7, 0);
+	temp.set64(i++ ^ 7, this._version == 1 ? 0x01: 0x80);
+	while (i & 7) temp.set64(i++ ^ 7, 0);
 
 	if (i > 56) {
-		Tiger.compress(temp, this._res);
+		Tiger._compress(temp, this._res);
 		i = 0;
 	}
 
 	while (i>>>3 < 7) {
-		temp[i>>>3] = new Long;
+		temp._buf[i>>>3] = new Long;
 		i += 8;
 	}
-	temp[7] = Long.lshift(this._length,3);
-	Tiger.compress(temp, this._res);
+	temp._buf[7] = Long.lshift(this._length,3);
+	Tiger._compress(temp, this._res);
 
-	var res = new Array(Tiger.DIGEST>>2);
-	res[0] = 0;
+	var res = new Buffer(new Array(Tiger.DIGEST>>2));
+	res._buf[0] = 0;
 	Buffer.copy_le_be(res, 0, this._res, 0, Tiger.DIGEST);
 	return res;
 }
@@ -650,15 +650,17 @@ Tiger.round = function(a,b,c,x,m)
 	b.n = b0.n;
 	c.n = c0.n;
 }
-Tiger.compress = function(buf,state)
+Tiger._compress = function(buffer,state)
 {
+	var buf = buffer._buf;
+	var state_buf = state._buf;
 	var a, b, c, tmpa;
 	var aa, bb, cc;
 	var x0, x1, x2, x3, x4, x5, x6, x7;
 	var mul;
-	aa = state[0];
-	bb = state[1];
-	cc = state[2];
+	aa = state_buf[0];
+	bb = state_buf[1];
+	cc = state_buf[2];
 	a = new Long(aa);
 	b = new Long(bb);
 	c = new Long(cc);
@@ -719,7 +721,7 @@ Tiger.compress = function(buf,state)
 	}
 
 	/* 'feed forward' */
-	state[0] = Long.xor(a,aa);
-	state[1] = Long.subtract(b,bb);
-	state[2] = Long.add(c,cc);
+	state_buf[0] = Long.xor(a,aa);
+	state_buf[1] = Long.subtract(b,bb);
+	state_buf[2] = Long.add(c,cc);
 }

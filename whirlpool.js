@@ -20,7 +20,7 @@ Whirlpool = function()
 	// number of hashed bits (each a 16-bit integer)
 	this._bit_count = new Array(16);
 	// data to hash
-	this._buf = Buffer.zeros32(16);
+	this._buf = Buffer.create_zeros32(16);
 }
 Whirlpool.BLOCK = 64;
 Whirlpool.DIGEST = 64;
@@ -29,8 +29,8 @@ Whirlpool.prototype = new Hash();
 /** Initialize/reset a whirlpool context. */
 Whirlpool.prototype.init = function()
 {
-	Buffer.setzero32(this._hash);
-	Buffer.setzero32(this._bit_count);
+	new Buffer(this._hash).zero32();
+	new Buffer(this._bit_count).zero32();
 	// pos in buf
 	this._pos = 0;
 }
@@ -47,21 +47,21 @@ Whirlpool.prototype.update = function(buf, sz)
 
 	if (this._pos + sz < Whirlpool.BLOCK) {
 		// buffer will not fill
-		Buffer.copy(this._buf, this._pos, buf, 0, sz);
+		this._buf.copy(this._pos, buf, 0, sz);
 		this._pos += sz;
 		return;
 	}
 
 	// do first (full) block
 	var bytes = Whirlpool.BLOCK - this._pos;
-	Buffer.copy(this._buf, this._pos, buf, 0, bytes);
+	this._buf.copy(this._pos, buf, 0, bytes);
 	this._process_buf();
 	var srcpos = bytes;
 	sz -= bytes;
 
 	// do subsequent (full) blocks
 	while (sz >= Whirlpool.BLOCK) {
-		Buffer.copy(this._buf, 0, buf, srcpos, Whirlpool.BLOCK);
+		this._buf.copy(0, buf, srcpos, Whirlpool.BLOCK);
 		this._process_buf();
 		srcpos += Whirlpool.BLOCK;
 		sz -= Whirlpool.BLOCK;
@@ -69,7 +69,7 @@ Whirlpool.prototype.update = function(buf, sz)
 
 	// copy next partial block for later
 	if (sz)
-		Buffer.copy(this._buf, 0, buf, srcpos, sz);
+		this._buf.copy(0, buf, srcpos, sz);
 	this._pos = sz;
 }
 
@@ -82,19 +82,19 @@ Whirlpool.prototype.end = function()
 	// this function uses the invariant: pos < WBLOCKBYTES
 
 	// append the bit pattern 100000...
-	Buffer.set32(this._buf, this._pos++, 0x80);
+	this._buf.set32(this._pos++, 0x80);
 
 	if (this._pos + Whirlpool._LENGTH_BYTES > Whirlpool.BLOCK) {
 		// no room to fit the bit count; that will go in the next
 		// block; fill remainder with zeros
 		while (this._pos < Whirlpool.BLOCK)
-			Buffer.set32(this._buf, this._pos++, 0);
+			this._buf.set32(this._pos++, 0);
 		this._process_buf();
 		this._pos = 0;
 	}
 	// pad middle with zeros
 	while (this._pos < Whirlpool.BLOCK - Whirlpool._LENGTH_BYTES)
-		Buffer.set32(this._buf, this._pos++, 0);
+		this._buf.set32(this._pos++, 0);
 
 	this._append_count();
 
@@ -104,7 +104,7 @@ Whirlpool.prototype.end = function()
 	// return digest
 	var res = new Array(16);
 	for (i = 0; i < 16; i++) res[i] = this._hash[i];
-	return res;
+	return new Buffer(res);
 }
 
 Whirlpool.c_0 = [
@@ -1200,7 +1200,7 @@ Whirlpool.prototype._process_buf = function()
 	var block = new Array(16);	// mu(buffer)
 	var state = new Array(16);	// the cipher state
 	var L = new Array(16);
-	var buf = this._buf;
+	var buf = this._buf._buf;
 	var hash = this._hash;
 	var i, j, k;
 
@@ -1260,7 +1260,7 @@ Whirlpool.prototype._append_count = function()
 {
 	// compress bit_count to _buf
 	var bc = this._bit_count;
-	var buf = this._buf;
+	var buf = this._buf._buf;
 	for (var i = 0, j = 0; i < 8; i++, j += 2)
 		buf[i+8] = (bc[j] << 16) | bc[j+1];
 }

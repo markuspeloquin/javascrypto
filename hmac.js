@@ -19,7 +19,7 @@ Hmac = function(hashfn)
 {
 	this.constructor = Hmac;
 	this._fn = hashfn;
-	this._key = Buffer.zeros32(hashfn.block_size()>>2);
+	this._key = Buffer.create_zeros32(hashfn.block_size()>>2);
 }
 Hmac.IPAD = 0x36363636;
 Hmac.OPAD = 0x5c5c5c5c;
@@ -38,17 +38,17 @@ Hmac.prototype.init = function(key, sz)
 		this._fn.init();
 		this._fn.update(key, sz);
 		var digest = this._fn.end();
-		Buffer.copy(this._key, 0, digest, 0, sz_digest);
+		this._key.copy(0, digest, 0, sz_digest);
 		sz = sz_digest;
 	} else
-		Buffer.copy(this._key, 0, key, 0, sz);
+		this._key.copy(0, key, 0, sz);
 
 	while (sz < sz_block)
-		Buffer.set32(this._key, sz++, 0);
+		this._key.set32(sz++, 0);
 
 	var key_ipad = new Array(sz_block>>2);
 	for (i = 0; i < sz_block>>2; i++)
-		key_ipad[i] = this._key[i] ^ Hmac.IPAD;
+		key_ipad[i] = this._key._buf[i] ^ Hmac.IPAD;
 
 	this._fn.init();
 	this._fn.update(key_ipad, sz_block);
@@ -71,7 +71,7 @@ Hmac.prototype.end = function()
 	var mid_digest;
 
 	for (i = 0; i < sz_block>>2; i++)
-		key_opad[i] = this._key[i] ^ Hmac.OPAD;
+		key_opad[i] = this._key._buf[i] ^ Hmac.OPAD;
 
 	mid_digest = this._fn.end();
 	this._fn.init();
