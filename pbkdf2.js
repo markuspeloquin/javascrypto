@@ -27,19 +27,21 @@ var pbkdf2 = (function(){
 function pbkdf2(hmacfn, passwd, passwdsz, salt, saltsz, iter, szkey)
 {
 	var sz_digest = hmacfn.digest_size();
-	var i;
 	var blocks = Math.floor(szkey / sz_digest);
 	var partial = szkey % sz_digest;
 	var res = Buffer.create_zeros32((szkey + 3) >>> 2);
+	var indexbuf = new Buffer([1]);
 
-	for (i = 0; i < blocks; i++)
-		pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, i,
-		    res, i * sz_digest);
+	for (var i = 0; i < blocks; i++) {
+		pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter,
+		    indexbuf, res, i * sz_digest);
+		indexbuf._buf[0]++;
+	}
 
 	if (partial) {
 		var buf_partial = Buffer.create_zeros32(sz_digest>>>2);
-		pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, blocks,
-		    buf_partial, 0);
+		pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter,
+		    indexbuf, buf_partial, 0);
 		res.copy(blocks * sz_digest, buf_partial, 0, partial);
 	}
 
@@ -47,16 +49,16 @@ function pbkdf2(hmacfn, passwd, passwdsz, salt, saltsz, iter, szkey)
 }
 
 // PBKDF2's F function
-function pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, index,
+function pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, indexbuf,
     res, resoff)
 {
 	var sz_digest = hmacfn.digest_size();
 	var i, j;
-	var u;
+	var u, u_impl, res_impl = res._buf;
 
 	hmacfn.init(passwd, passwdsz);
 	hmacfn.update(salt, saltsz);
-	hmacfn.update([index+1], 4);
+	hmacfn.update(indexbuf, 4);
 	u = hmacfn.end();
 
 	res.copy(resoff, u, 0, sz_digest);
@@ -65,9 +67,10 @@ function pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, index,
 		hmacfn.init(passwd, passwdsz);
 		hmacfn.update(u, sz_digest);
 		u = hmacfn.end();
-		for (j = 0; j < u.length; j++)
+		u_impl = u._buf;
+		for (j = 0; j < u_impl.length; j++)
 			// assume resoff is a multiple of 4
-			res._buf[resoff+j] ^= u[j];
+			res_impl[resoff+j] ^= u_impl[j];
 	}
 }
 

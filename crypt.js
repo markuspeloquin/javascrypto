@@ -1,4 +1,4 @@
-/* Copyright (c) 2009, Markus Peloquin <markus@cs.wisc.edu>
+/ * Copyright (c) 2009, Markus Peloquin <markus@cs.wisc.edu>
  * 
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -39,45 +39,53 @@ Crypt.prototype.encrypt = function(plaintext, sz)
 	var sz_blk = this._cipher.block_size();
 	var sz_blk_4 = sz_blk >> 2;
 	var blocks = Math.floor(sz / sz_blk);
+	var buf_impl = new Array(sz_blk_4);
+	var buf = new Buffer(buf_impl);
+	var iv_impl = this._iv._buf;
 	var left = sz % sz_blk;
-	var buf = new Array(sz_blk_4);
 	var pos;
 	var res = [];
 
 	switch (this._mode) {
 	case Crypt.MODE_CTR:
-		var pre = new Array(sz_blk_4);
+		var pre_impl = new Array(sz_blk_4);
+		var pre = new Buffer(pre_impl);
 		var iv_tail;
 
 		// copy all but last 4 bytes from 'iv' to 'pre'
 		for (i = 0; i < sz_blk_4 - 1; i++)
-			pre[i] = this._iv[i];
+			pre_impl[i] = iv_impl[i];
+
+		// make it the same sort of array
+		buf_impl[0] = pre_impl[0];
 
 		// copy last 4 bytes Math.flooro 'iv_tail'
-		iv_tail = this._iv[sz_blk_4 - 1];
+		iv_tail = iv_impl[sz_blk_4 - 1];
 
 		// encrypt whole blocks
 		pos = 0;
 		for (i = 0; i < blocks; i++) {
 			// in effect, pre = iv XOR counter
-			pre[sz_blk_4 - 1] = i ^ iv_tail;
+			pre_impl[sz_blk_4 - 1] = i ^ iv_tail;
 
 			this._cipher.encrypt(pre, buf);
 			for (j = 0; j < sz_blk_4; j++)
-				res.push(buf[j] ^ plaintext._buf[pos + j]);
+				res.push(buf_impl[j] ^
+				    plaintext._buf[pos + j]);
 
 			pos += sz_blk_4;
 		}
 
 		// encrypt partial block
 		if (left) {
-			pre[sz_blk_4 - 1] = blocks ^ iv_tail;
+			pre_impl[sz_blk_4 - 1] = blocks ^ iv_tail;
 
 			this._cipher.encrypt(pre, buf);
 			for (i = 0; i < left>>2; i++)
-				res.push(buf[i] ^ plaintext._buf[pos + i]);
+				res.push(buf_impl[i] ^
+				    plaintext._buf[pos + i]);
 			if (left < sz_blk) {
-				var x = buf[i] ^ plaintext._buf[pos + i];
+				var x = buf_impl[i] ^ plaintext._buf[pos + i];
 				switch (left & 3) {
 				case 1: x &= 0xff000000; break;
 				case 2: x &= 0xffff0000; break;

@@ -52,10 +52,10 @@ function init(key, sz)
 
 	var key_ipad = new Array(sz_block>>2);
 	for (i = 0; i < sz_block>>2; i++)
-		key_ipad[i] = this._key._buf[i] ^ Hmac.IPAD;
+		key_ipad[i] = this._key._buf[i] ^ IPAD;
 
 	this._fn.init();
-	this._fn.update(key_ipad, sz_block);
+	this._fn.update(new Buffer(key_ipad), sz_block);
 }
 
 /** Add data to the HMAC computation
@@ -77,11 +77,11 @@ function end()
 	var mid_digest;
 
 	for (i = 0; i < sz_block>>2; i++)
-		key_opad[i] = this._key._buf[i] ^ Hmac.OPAD;
+		key_opad[i] = this._key._buf[i] ^ OPAD;
 
 	mid_digest = this._fn.end();
 	this._fn.init();
-	this._fn.update(key_opad, sz_block);
+	this._fn.update(new Buffer(key_opad), sz_block);
 	this._fn.update(mid_digest, sz_digest);
 	return this._fn.end();
 }

@@ -133,6 +133,28 @@ function /* string */ as_hex(off, sz)
 	return res.join('');
 }
 
+function /* string */ as_text(off, sz)
+{
+	var buf = this._buf;
+	var shift = this.type()==BUF32 ? 2 : 3;
+	var maxlen = buf.length << shift;
+	switch (arguments.length) {
+	case 0:
+		off = 0;
+		sz = maxlen;
+		break;
+	case 1:
+		sz = off;
+		if (sz > maxlen) sz = maxlen;
+		off = 0;
+	}
+	if (off >= sz) return '';
+	var res = [];
+	while (sz--)
+		res.push(String.fromCharCode(basic_get32(buf, off++)));
+	return res.join('');
+}
+
 function /* void */ copy(off, src, srcoff, sz)
 {
 	basic_copy(this._buf, off, src._buf, srcoff, sz);
@@ -443,6 +465,7 @@ Buffer.copy_le_be = static_copy_le_be;
 _connect(Buffer.prototype, [
     as_base64,
     as_hex,
+    as_text,
     copy,
     copy_be_le,
     copy_le_be,
