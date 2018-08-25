@@ -1,9 +1,9 @@
-/* Copyright (c) 2009, Markus Peloquin <markus@cs.wisc.edu>
- * 
+/* Copyright (c) 2016, Markus Peloquin <markus@cs.wisc.edu>
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
@@ -12,7 +12,9 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
-var pbkdf2 = (function(){
+'use strict';
+
+const pbkdf2 = (() => {
 
 /** Password-based key derivation function
  * \param hmacfn	Hmac object.
@@ -24,25 +26,25 @@ var pbkdf2 = (function(){
  * \param szkey		Size of the key to produce in bytes
  * \return		The generated key
  */
-function pbkdf2(hmacfn, passwd, passwdsz, salt, saltsz, iter, szkey)
-{
-	var sz_digest = hmacfn.digest_size();
-	var blocks = Math.floor(szkey / sz_digest);
-	var partial = szkey % sz_digest;
-	var res = Buffer.create_zeros32((szkey + 3) >>> 2);
-	var indexbuf = new Buffer([1]);
+function pbkdf2(hmacfn, passwd, passwdsz, salt, saltsz, iter, szkey) {
+	const szDigest = hmacfn.digestSize();
+	const blocks = (szkey / szDigest) ^ 0;
+	const partial = szkey % szDigest;
+	const res = new ByteArray((szkey + 3) >>> 2);
+	const indexbuf = new ByteArray([1]);
+	const indexbufImpl = indexbuf._buf;
 
-	for (var i = 0; i < blocks; i++) {
+	for (let i = 0; i < blocks; i++) {
 		pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter,
-		    indexbuf, res, i * sz_digest);
-		indexbuf._buf[0]++;
+		    indexbuf, res, i * szDigest);
+		indexbufImpl[0]++;
 	}
 
 	if (partial) {
-		var buf_partial = Buffer.create_zeros32(sz_digest>>>2);
+		const bufPartial = new ByteArray(szDigest);
 		pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter,
-		    indexbuf, buf_partial, 0);
-		res.copy(blocks * sz_digest, buf_partial, 0, partial);
+		    indexbuf, bufPartial, 0);
+		res.copy(blocks * szDigest, bufPartial, 0, partial);
 	}
 
 	return res;
@@ -50,27 +52,27 @@ function pbkdf2(hmacfn, passwd, passwdsz, salt, saltsz, iter, szkey)
 
 // PBKDF2's F function
 function pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, indexbuf,
-    res, resoff)
-{
-	var sz_digest = hmacfn.digest_size();
-	var i, j;
-	var u, u_impl, res_impl = res._buf;
+    res, resoff) {
+	const szDigest = hmacfn.digestSize();
+	const resImpl = res._buf;
 
 	hmacfn.init(passwd, passwdsz);
 	hmacfn.update(salt, saltsz);
 	hmacfn.update(indexbuf, 4);
-	u = hmacfn.end();
+	const u0 = hmacfn.end();
 
-	res.copy(resoff, u, 0, sz_digest);
+	res.copy(resoff, u0, 0, szDigest);
 	resoff >>>= 2;
-	for (i = 1; i < iter; i++) {
+	for (let i = 1; i < iter; i++) {
 		hmacfn.init(passwd, passwdsz);
-		hmacfn.update(u, sz_digest);
-		u = hmacfn.end();
-		u_impl = u._buf;
-		for (j = 0; j < u_impl.length; j++)
+		hmacfn.update(u, szDigest);
+		const u = hmacfn.end();
+		const uImpl = u._buf;
+		let j = 0;
+		for (const val of uImpl) {
 			// assume resoff is a multiple of 4
-			res_impl[resoff+j] ^= u_impl[j];
+			resImpl[resoff + j++] ^= val;
+		}
 	}
 }
 

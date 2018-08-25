@@ -1,9 +1,9 @@
 /* Copyright (c) 2009, Markus Peloquin <markus@cs.wisc.edu>
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
@@ -12,36 +12,36 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
-var Whirlpool = (function(){
+ 'use strict';
 
-var BLOCK = 64;
-var DIGEST = 64;
+const Whirlpool = (() => {
 
-function Whirlpool()
-{
-	this.constructor = Whirlpool;
-	// hashing state
+const BLOCK = 64;
+const DIGEST = 64;
+
+function Whirlpool() {
+	Hash.call(this);
+	// hashing state (uint32_t[])
 	this._hash = new Array(16);
-	// number of hashed bits (each a 16-bit integer)
-	this._bit_count = new Array(16);
-	// data to hash
-	this._buf = Buffer.create_zeros32(16);
+	// number of hashed bits (uint16_t[])
+	this._bitCount = new Array(16);
+	// data to hash (uint8_t[])
+	this._buf = new ByteArray(64);
+	this._pos = null;
 }
+Whirlpool.prototype = Object.create(Hash.prototype);
+Whirlpool.prototype.constructor = Whirlpool;
+
 Whirlpool.BLOCK = BLOCK;
 Whirlpool.DIGEST = DIGEST;
-Whirlpool.prototype = new Hash();
 
-function digest_size()
-{ return DIGEST }
-
-function block_size()
-{ return BLOCK }
+Whirlpool.prototype.digestSize = () => DIGEST;
+Whirlpool.prototype.blockSize = () => BLOCK;
 
 /** Initialize/reset a whirlpool context. */
-function init()
-{
-	new Buffer(this._hash).zero32();
-	new Buffer(this._bit_count).zero32();
+Whirlpool.prototype.init = function() {
+	this._hash.fill(0);
+	this._bitCount.fill(0);
 	// pos in buf
 	this._pos = 0;
 }
@@ -50,75 +50,97 @@ function init()
  * \param buf	The data to be appended (big endian).
  * \param sz	Size of data in bytes.
  */
-function update(buf, sz)
-{
+Whirlpool.prototype.update = function(buf, sz) {
 	// this function maintains the invariant: pos < WBLOCKBYTES
+	let _buf = this._buf;
+	let _pos = this._pos;
 
-	_increment_count(this, sz);
+	_incrementCount(this, sz);
 
-	if (this._pos + sz < BLOCK) {
+	if (_pos + sz < BLOCK) {
 		// buffer will not fill
-		this._buf.copy(this._pos, buf, 0, sz);
-		this._pos += sz;
+		for (let i = 0, j = _pos; i < sz; i++)
+			_buf.set(j++, buf.get(i));
+		this._pos = _pos + sz;
 		return;
 	}
 
 	// do first (full) block
-	var bytes = BLOCK - this._pos;
-	this._buf.copy(this._pos, buf, 0, bytes);
-	_process_buf(this);
-	var srcpos = bytes;
+	const bytes = BLOCK - _pos;
+	for (let i = 0, j = _pos; i < bytes; i++)
+		_buf.set(j++, buf.get(i));
+	_processBuf(this);
+	let srcpos = bytes;
 	sz -= bytes;
 
 	// do subsequent (full) blocks
 	while (sz >= BLOCK) {
-		this._buf.copy(0, buf, srcpos, BLOCK);
-		_process_buf(this);
-		srcpos += BLOCK;
+		for (let i = 0; i < BLOCK; i++)
+			_buf.set(i, buf.get(srcpos++));
+		_processBuf(this);
 		sz -= BLOCK;
 	}
 
 	// copy next partial block for later
-	if (sz)
-		this._buf.copy(0, buf, srcpos, sz);
+	for (let i = 0; i < sz; i++)
+		_buf.set(i, buf.get(srcpos++));
 	this._pos = sz;
 }
 
 /** Finish computation
  * \return The digest
  */
-function end()
-{
-	var i;
+Whirlpool.prototype.end = function() {
 	// this function uses the invariant: pos < WBLOCKBYTES
+	const _buf = this._buf;
+	let _pos = this._pos;
 
 	// append the bit pattern 100000...
-	this._buf.set32(this._pos++, 0x80);
+	_buf.set(_pos++, 0x80);
 
-	if (this._pos + LENGTH_BYTES > BLOCK) {
+	const posFooter = BLOCK - LENGTH_BYTES;
+
+	if (_pos > posFooter) {
 		// no room to fit the bit count; that will go in the next
 		// block; fill remainder with zeros
-		while (this._pos < BLOCK)
-			this._buf.set32(this._pos++, 0);
-		_process_buf(this);
-		this._pos = 0;
+		while (_pos < BLOCK)
+			_buf.set(_pos++, 0);
+		_processBuf(this);
+		_pos = 0;
 	}
 	// pad middle with zeros
-	while (this._pos < BLOCK - LENGTH_BYTES)
-		this._buf.set32(this._pos++, 0);
+	while (_pos < posFooter)
+		_buf.set(_pos++, 0);
 
-	_append_count(this);
+	this._pos = _pos;
+	_appendCount(this);
 
 	// process final data block
-	_process_buf(this);
+	_processBuf(this);
 
 	// return digest
-	var res = new Array(16);
-	for (i = 0; i < 16; i++) res[i] = this._hash[i];
-	return new Buffer(res);
+	const _hash = this._hash;
+	const res = new ByteArray(DIGEST);
+	res.set32(0,  _hash[0]);
+	res.set32(1,  _hash[1]);
+	res.set32(2,  _hash[2]);
+	res.set32(3,  _hash[3]);
+	res.set32(4,  _hash[4]);
+	res.set32(5,  _hash[5]);
+	res.set32(6,  _hash[6]);
+	res.set32(7,  _hash[7]);
+	res.set32(8,  _hash[8]);
+	res.set32(9,  _hash[9]);
+	res.set32(10, _hash[10]);
+	res.set32(11, _hash[11]);
+	res.set32(12, _hash[12]);
+	res.set32(13, _hash[13]);
+	res.set32(14, _hash[14]);
+	res.set32(15, _hash[15]);
+	return res;
 }
 
-var C_0 = [
+const C_0 = [
 	0x18186018,0xc07830d8,0x23238c23,0x05af4626,
 	0xc6c63fc6,0x7ef991b8,0xe8e887e8,0x136fcdfb,
 	0x87872687,0x4ca113cb,0xb8b8dab8,0xa9626d11,
@@ -249,7 +271,7 @@ var C_0 = [
 	0xf8f8c7f8,0x933fed6b,0x86862286,0x44a411c2
 ];
 
-var C_1 = [
+const C_1 = [
 	0xd8181860,0x18c07830,0x2623238c,0x2305af46,
 	0xb8c6c63f,0xc67ef991,0xfbe8e887,0xe8136fcd,
 	0xcb878726,0x874ca113,0x11b8b8da,0xb8a9626d,
@@ -380,7 +402,7 @@ var C_1 = [
 	0x6bf8f8c7,0xf8933fed,0xc2868622,0x8644a411
 ];
 
-var C_2 = [
+const C_2 = [
 	0x30d81818,0x6018c078,0x46262323,0x8c2305af,
 	0x91b8c6c6,0x3fc67ef9,0xcdfbe8e8,0x87e8136f,
 	0x13cb8787,0x26874ca1,0x6d11b8b8,0xdab8a962,
@@ -511,7 +533,7 @@ var C_2 = [
 	0xed6bf8f8,0xc7f8933f,0x11c28686,0x228644a4
 ];
 
-var C_3 = [
+const C_3 = [
 	0x7830d818,0x186018c0,0xaf462623,0x238c2305,
 	0xf991b8c6,0xc63fc67e,0x6fcdfbe8,0xe887e813,
 	0xa113cb87,0x8726874c,0x626d11b8,0xb8dab8a9,
@@ -642,7 +664,7 @@ var C_3 = [
 	0x3fed6bf8,0xf8c7f893,0xa411c286,0x86228644
 ];
 
-var C_4 = [
+const C_4 = [
 	0xc07830d8,0x18186018,0x05af4626,0x23238c23,
 	0x7ef991b8,0xc6c63fc6,0x136fcdfb,0xe8e887e8,
 	0x4ca113cb,0x87872687,0xa9626d11,0xb8b8dab8,
@@ -773,7 +795,7 @@ var C_4 = [
 	0x933fed6b,0xf8f8c7f8,0x44a411c2,0x86862286
 ];
 
-var C_5 = [
+const C_5 = [
 	0x18c07830,0xd8181860,0x2305af46,0x2623238c,
 	0xc67ef991,0xb8c6c63f,0xe8136fcd,0xfbe8e887,
 	0x874ca113,0xcb878726,0xb8a9626d,0x11b8b8da,
@@ -904,7 +926,7 @@ var C_5 = [
 	0xf8933fed,0x6bf8f8c7,0x8644a411,0xc2868622
 ];
 
-var C_6 = [
+const C_6 = [
 	0x6018c078,0x30d81818,0x8c2305af,0x46262323,
 	0x3fc67ef9,0x91b8c6c6,0x87e8136f,0xcdfbe8e8,
 	0x26874ca1,0x13cb8787,0xdab8a962,0x6d11b8b8,
@@ -1035,7 +1057,7 @@ var C_6 = [
 	0xc7f8933f,0xed6bf8f8,0x228644a4,0x11c28686
 ];
 
-var C_7 = [
+const C_7 = [
 	0x186018c0,0x7830d818,0x238c2305,0xaf462623,
 	0xc63fc67e,0xf991b8c6,0xe887e813,0x6fcdfbe8,
 	0x8726874c,0xa113cb87,0xb8dab8a9,0x626d11b8,
@@ -1166,7 +1188,7 @@ var C_7 = [
 	0xf8c7f893,0x3fed6bf8,0x86228644,0xa411c286
 ];
 
-var RC = [
+const RC = [
 	0x1823c6e8,0x87b8014f,0x36a6d2f5,0x796f9152,
 	0x60bc9b8e,0xa30c7b35,0x1de0d7c2,0x2e4bfe57,
 	0x157737e5,0x9ff04ada,0x58c9290a,0xb1a06b85,
@@ -1174,21 +1196,20 @@ var RC = [
 	0xfbee7c66,0xdd17479e,0xca2dbf07,0xad5a8333
 ];
 
-// bytes in 'bit_count'
-var LENGTH_BYTES = 32;
+// bytes in 'bitCount'
+const LENGTH_BYTES = 32;
 
 // the number of rounds of the internal dedicated block cipher
-var ROUNDS = 10;
+const ROUNDS = 10;
 
-var C_ARRS = [C_0, C_1, C_2, C_3, C_4, C_5, C_6, C_7]; 
-function _compute_l(L, A, idx)
-{
-	var i, j, shift = 24;
-	var L_idx = idx << 1;
-	var A_idx = L_idx;
+const C_ARRS = [C_0, C_1, C_2, C_3, C_4, C_5, C_6, C_7];
+function _computeL(L, A, idx) {
+	let shift = 24;
+	const L_idx = idx << 1;
+	let A_idx = L_idx;
 	L[L_idx] = L[L_idx+1] = 0;
-	for (i = 0; i < 8; i++) {
-		j = ((A[A_idx] >>> shift) & 0xff) << 1;
+	for (let i = 0; i < 8; i++) {
+		const j = ((A[A_idx] >>> shift) & 0xff) << 1;
 		L[L_idx]   ^= C_ARRS[i][j];
 		L[L_idx+1] ^= C_ARRS[i][j+1];
 
@@ -1199,95 +1220,146 @@ function _compute_l(L, A, idx)
 			A_idx--;
 			shift = 24;
 		}
-		if (A_idx < 0) A_idx += 16;
+		// if A_idx < 0: A_idx += 16
+		A_idx &= 0xf;
 	}
 }
 
 // the core Whirlpool transform
-function _process_buf(ctx)
-{
-	var K = new Array(16);		// the round key
-	var block = new Array(16);	// mu(buffer)
-	var state = new Array(16);	// the cipher state
-	var L = new Array(16);
-	var buf = ctx._buf._buf;
-	var hash = ctx._hash;
-	var i, j, k;
+function _processBuf(ctx) {
+	const K = new Array(16);	// the round key
+	const state = new Array(16);	// the cipher state
+	const L = new Array(16);
+	const buf = ctx._buf._buf;
+	const hash = ctx._hash;
 
 	// compute and apply K_0 to the cipher state
-	for (i = 0; i < 16; i++) {
+	for (let i = 0; i < 16; i++) {
 		K[i] = hash[i];
 		state[i] = buf[i] ^ K[i];
 	}
 
 	// iterate over all rounds
-	for (i = 0, j = 0; i < ROUNDS; i++, j+=2) {
+	for (let i = 0, j = 0; i < ROUNDS; i++, j+=2) {
 		// compute K_i from K_{i-1}
-		_compute_l(L,K,0);
+		_computeL(L,K,0);
 		L[0] ^= RC[j];
 		L[1] ^= RC[j+1];
-		_compute_l(L,K,1);
-		_compute_l(L,K,2);
-		_compute_l(L,K,3);
-		_compute_l(L,K,4);
-		_compute_l(L,K,5);
-		_compute_l(L,K,6);
-		_compute_l(L,K,7);
-		for (k = 0; k < 16; k++) K[k] = L[k];
+		_computeL(L,K,1);
+		_computeL(L,K,2);
+		_computeL(L,K,3);
+		_computeL(L,K,4);
+		_computeL(L,K,5);
+		_computeL(L,K,6);
+		_computeL(L,K,7);
+		for (let k = 0; k < 16; k++) K[k] = L[k];
 		// apply the i-th round transformation
-		_compute_l(L,state,0);
-		_compute_l(L,state,1);
-		_compute_l(L,state,2);
-		_compute_l(L,state,3);
-		_compute_l(L,state,4);
-		_compute_l(L,state,5);
-		_compute_l(L,state,6);
-		_compute_l(L,state,7);
-		for (k = 0; k < 16; k++) state[k] = L[k] ^ K[k];
+		_computeL(L,state,0);
+		_computeL(L,state,1);
+		_computeL(L,state,2);
+		_computeL(L,state,3);
+		_computeL(L,state,4);
+		_computeL(L,state,5);
+		_computeL(L,state,6);
+		_computeL(L,state,7);
+		for (let k = 0; k < 16; k++) state[k] = L[k] ^ K[k];
 	}
 	// apply the Miyaguchi-Preneel compression function
-	for (i = 0; i < 16; i++)
+	for (let i = 0; i < 16; i++)
 		hash[i] ^= state[i] ^ buf[i];
 }
 
-function _increment_count(ctx, sz)
-{
-	var bit_count = ctx._bit_count;
+function _incrementCount(ctx, sz) {
+	const _bitCount = ctx._bitCount;
 
-	var val = Long.lshift(new Long(sz),3);
-	var sum;
-	for (var i = 15; i >= 0; i--) {
-		sum = val.get16(0) + bit_count[i];
-		bit_count[i] = sum & 0xffff;
-		val = Long.add(Long.rshift(val, 16), new Long(sum >> 16));
-	}
+	const c0 = (sz << 3) & 0xffff;
+	const c1 = (sz >> 13) & 0xffff;
+	const c2 = sz >>> 29;
+
+	// 0: least significant
+
+	let sum;
+	let carry;
+
+	sum = _bitCount[0] += c0;         carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[0] = sum & 0xffff;
+
+	sum = _bitCount[1] += c1 + carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[1] = sum & 0xffff;
+
+	sum = _bitCount[2] += c2 + carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[2] = sum & 0xffff;
+
+	sum = _bitCount[3] +=      carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[3] = sum & 0xffff;
+
+	sum = _bitCount[4] +=      carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[4] = sum & 0xffff;
+
+	sum = _bitCount[5] +=      carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[5] = sum & 0xffff;
+
+	sum = _bitCount[6] +=      carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[6] = sum & 0xffff;
+
+	sum = _bitCount[7] +=      carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[7] = sum & 0xffff;
+
+	sum = _bitCount[8] +=      carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[8] = sum & 0xffff;
+
+	sum = _bitCount[9] +=      carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[9] = sum & 0xffff;
+
+	sum = _bitCount[10] +=     carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[10] = sum & 0xffff;
+
+	sum = _bitCount[11] +=     carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[11] = sum & 0xffff;
+
+	sum = _bitCount[12] +=     carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[12] = sum & 0xffff;
+
+	sum = _bitCount[13] +=     carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[13] = sum & 0xffff;
+
+	sum = _bitCount[14] +=     carry; carry = sum >>> 16;
+	if (!carry) return;
+	_bitCount[14] = sum & 0xffff;
+
+	sum = _bitCount[15] +=     carry;
+	_bitCount[15] = sum & 0xffff;
 }
 
 // append bit length of hashed data
-function _append_count(ctx)
-{
-	// compress bit_count to _buf
-	var bc = ctx._bit_count;
-	var buf = ctx._buf._buf;
-	for (var i = 0, j = 0; i < 8; i++, j += 2)
-		buf[i+8] = (bc[j] << 16) | bc[j+1];
+function _appendCount(ctx) {
+	const _bitCount = ctx._bitCount;
+	const _buf = ctx._buf;
+	let pos = ctx._pos >> 2;
+	_buf.set32(pos++, (_bitCount[15] << 16) | _bitCount[14]);
+	_buf.set32(pos++, (_bitCount[13] << 16) | _bitCount[12]);
+	_buf.set32(pos++, (_bitCount[11] << 16) | _bitCount[10]);
+	_buf.set32(pos++, (_bitCount[9]  << 16) | _bitCount[8]);
+	_buf.set32(pos++, (_bitCount[7]  << 16) | _bitCount[6]);
+	_buf.set32(pos++, (_bitCount[5]  << 16) | _bitCount[4]);
+	_buf.set32(pos++, (_bitCount[3]  << 16) | _bitCount[2]);
+	_buf.set32(pos++, (_bitCount[1]  << 16) | _bitCount[0]);
+	ctx._pos = pos << 2;
 }
-
-function _connect(dest, functions)
-{
-	for (var i = 0; i < functions.length; i++) {
-		var f = functions[i];
-		dest[f.name] = f;
-	}
-}
-
-_connect(Whirlpool.prototype, [
-	block_size,
-	digest_size,
-	end,
-	init,
-	update,
-]);
 
 return Whirlpool;
 })();

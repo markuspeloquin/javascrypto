@@ -1,8 +1,8 @@
-var serpent_tests;
+'use strict';
 
-(function() { // anon namespace
+const serpentTests = (() => {
 
-serpent_tests = [{
+const serpentTests = [{
 	key:'00000000000000000000000000000000',
 	type:'monte_carlo',
 	encrypt:0,
@@ -7204,19 +7204,19 @@ serpent_tests = [{
 	pt:'683fcb5912af6137a605e7d233e119e4'
 }];
 
-function hex_reverse(str)
-{
-	var out = '';
-	for (var i = str.length-2; i >= 0; i -= 2)
+function hexReverse(str) {
+	let out = '';
+	for (let i = str.length-2; i >= 0; i -= 2)
 		out += str.slice(i, i+2);
 	return out;
 }
-for (var i = 0; i != serpent_tests.length; ++i) {
-	var test = serpent_tests[i];
+for (let i = 0; i < serpentTests.length; i++) {
+	const test = serpentTests[i];
 	test.testnum = i + 1;
-	test.key = hex_reverse(test.key);
-	test.pt = hex_reverse(test.pt);
-	test.ct = hex_reverse(test.ct);
+	test.key = hexReverse(test.key);
+	test.pt = hexReverse(test.pt);
+	test.ct = hexReverse(test.ct);
 }
 
+return serpentTests;
 })(); // end anon namespace

@@ -1,9 +1,9 @@
-/* Copyright (c) 2009, Markus Peloquin <markus@cs.wisc.edu>
- * 
+/* Copyright (c) 2016, Markus Peloquin <markus@cs.wisc.edu>
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
@@ -12,102 +12,96 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
-var Hmac = (function(){
+'use strict';
 
-var IPAD = 0x36363636;
-var OPAD = 0x5c5c5c5c;
+const Hmac = (() => {
+
+const IPAD = 0x36363636;
+const OPAD = 0x5c5c5c5c;
 
 /** Create a HMAC function
  * \param hashfn A hash function object
  */
-function Hmac(hashfn)
-{
-	this.constructor = Hmac;
+function Hmac(hashfn) {
 	this._fn = hashfn;
-	this._key = Buffer.create_zeros32(hashfn.block_size()>>2);
+	this._key = new ByteArray(hashfn.blockSize());
 }
 Hmac.prototype = {};
+Hmac.prototype.constructor = Hmac;
 
 /** Initialize the HMAC context
  * \param key	BE key
  * \param sz	Key length in bytes
  */
-function init(key, sz)
-{
-	var i;
-	var sz_block = this._fn.block_size();
-	var sz_digest = this._fn.digest_size();
+Hmac.prototype.init = function(key, sz) {
+	const _fn = this._fn;
+	const _key = this._key;
+	const _keyImpl = _key._buf;
 
-	if (sz > sz_block) {
-		this._fn.init();
-		this._fn.update(key, sz);
-		var digest = this._fn.end();
-		this._key.copy(0, digest, 0, sz_digest);
-		sz = sz_digest;
+	const szBlock = _fn.blockSize();
+	const szBlock4 = szBlock >> 2;
+	var szDigest = _fn.digestSize();
+
+	if (sz > szBlock) {
+		_fn.init();
+		_fn.update(key, sz);
+		const digest = _fn.end();
+		_key.copy(0, digest, 0, szDigest);
+		sz = szDigest;
 	} else
-		this._key.copy(0, key, 0, sz);
+		_key.copy(0, key, 0, sz);
 
-	while (sz < sz_block)
-		this._key.set32(sz++, 0);
+	while (sz < szBlock)
+		_keyImpl[sz++] = 0;
 
-	var key_ipad = new Array(sz_block>>2);
-	for (i = 0; i < sz_block>>2; i++)
-		key_ipad[i] = this._key._buf[i] ^ IPAD;
+	const keyIpad = new ByteArray(szBlock);
+	const keyIpadImpl = keyIpad._buf;
+	for (let i = 0; i < szBlock4; i++)
+		keyIpadImpl[i] = _keyImpl[i] ^ IPAD;
 
-	this._fn.init();
-	this._fn.update(new Buffer(key_ipad), sz_block);
+	_fn.init();
+	_fn.update(keyIpad, szBlock);
 }
 
 /** Add data to the HMAC computation
- * \param buf	BE buffer 
+ * \param buf	BE buffer
  * \param sz	Length of buffer in bytes
  */
-function update(buf, sz)
-{
+Hmac.prototype.update = function(buf, sz) {
 	this._fn.update(buf, sz);
 }
 
 /** Return the result of the HMAC computation */
-function end()
-{
-	var i;
-	var sz_block = this._fn.block_size();
-	var sz_digest = this._fn.digest_size();
-	var key_opad = new Array(sz_block>>2);
-	var mid_digest;
+Hmac.prototype.end = function() {
+	const _fn = this._fn;
+	const _key = this._key;
+	const _keyImpl = _key._buf;
 
-	for (i = 0; i < sz_block>>2; i++)
-		key_opad[i] = this._key._buf[i] ^ OPAD;
+	const szBlock = _fn.blockSize();
+	const szBlock4 = szBlock >> 2;
+	const szDigest = _fn.digestSize();
 
-	mid_digest = this._fn.end();
-	this._fn.init();
-	this._fn.update(new Buffer(key_opad), sz_block);
-	this._fn.update(mid_digest, sz_digest);
-	return this._fn.end();
+	const keyOpad = new ByteArray(szBlock);
+	const keyOpadImpl = keyOpad._buf;
+	for (let i = 0; i < szBlock4; i++)
+		keyOpadImpl[i] = _keyImpl[i] ^ OPAD;
+
+	const midDigest = _fn.end();
+	_fn.init();
+	_fn.update(keyOpad, szBlock);
+	_fn.update(midDigest, szDigest);
+	return _fn.end();
 }
 
 /** The block size of the hash function */
-function block_size()
-{ return this._fn.block_size() }
+Hmac.prototype.blockSize = function() {
+	return this._fn.blockSize();
+}
 
 /** The digest size of the hash function */
-function digest_size()
-{ return this._fn.digest_size() }
-
-function _connect(dest, functions)
-{
-	for (var i = 0; i < functions.length; i++) {
-		var f = functions[i];
-		dest[f.name] = f;
-	}
+Hmac.prototype.digestSize = function() {
+	return this._fn.digestSize();
 }
-_connect(Hmac.prototype, [
-	block_size,
-	digest_size,
-	end,
-	init,
-	update,
-]);
 
 return Hmac;
 })();

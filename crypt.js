@@ -1,9 +1,9 @@
-/* Copyright (c) 2009, Markus Peloquin <markus@cs.wisc.edu>
- * 
+/* Copyright (c) 2016, Markus Peloquin <markus@cs.wisc.edu>
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
@@ -12,80 +12,79 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
+'use strict';
+
+const Crypt = (() => {
+
 /** Create a block encrypter
  * \param cipher	The Cipher object to en/decrypt with
  * \param mode		On of Crypt.MODE_*.
  * \param iv		The initial vector
  */
-function Crypt(cipher, mode, iv)
-{
+function Crypt(cipher, mode, iv) {
 	this._cipher = cipher;
 	this._mode = mode;
 	this._iv = iv;
 }
 Crypt.MODE_CTR = 0;	/**< Counter block mode */
 Crypt.prototype = {};
+Crypt.prototype.constructor = Crypt;
 
 /** Encrypt data
  * \param plaintext	Data to encrypt
  * \param sz		Size of plaintext in bytes
  * \returns		The encrypted data (size could be rounded up)
  */
-Crypt.prototype.encrypt = function(plaintext, sz)
-{
-	if (sz > plaintext._buf.length * 4) sz = plaintext._buf.length * 4;
+Crypt.prototype.encrypt = function(plaintext, sz) {
+	if (sz > plaintext.size()) sz = plaintext.size();
 
-	var i, j;
-	var sz_blk = this._cipher.block_size();
-	var sz_blk_4 = sz_blk >> 2;
-	var blocks = Math.floor(sz / sz_blk);
-	var buf_impl = new Array(sz_blk_4);
-	var buf = new Buffer(buf_impl);
-	var iv_impl = this._iv._buf;
-	var left = sz % sz_blk;
-	var pos;
-	var res = [];
+	const _cipher = this._cipher;
+	const _iv = this._iv;
+	const _ivImpl = _iv._buf;
+
+	const plaintextImpl = plaintext._buf;
+	const szBlk = _cipher.blockSize();
+	const szBlk4 = szBlk >> 2;
+	const blocks = (sz / szBlk) ^ 0;
+	const buf = new ByteArray(szBlk);
+	const bufImpl = buf._buf;
+	const left = sz - blocks * szBlk;
+	const res = [];
 
 	switch (this._mode) {
 	case Crypt.MODE_CTR:
-		var pre_impl = new Array(sz_blk_4);
-		var pre = new Buffer(pre_impl);
-		var iv_tail;
+		const pre = new ByteArray(szBlk);
+		const preImpl = pre._buf;
 
 		// copy all but last 4 bytes from 'iv' to 'pre'
-		for (i = 0; i < sz_blk_4 - 1; i++)
-			pre_impl[i] = iv_impl[i];
+		for (let i = 0; i < szBlk4 - 1; i++)
+			preImpl[i] = _ivImpl[i];
 
-		// make it the same sort of array
-		buf_impl[0] = pre_impl[0];
-
-		// copy last 4 bytes Math.flooro 'iv_tail'
-		iv_tail = iv_impl[sz_blk_4 - 1];
+		// copy last 4 bytes to 'iv_tail'
+		const ivTail = _ivImpl[szBlk4 - 1];
 
 		// encrypt whole blocks
-		pos = 0;
-		for (i = 0; i < blocks; i++) {
+		var pos = 0;
+		for (let i = 0; i < blocks; i++) {
 			// in effect, pre = iv XOR counter
-			pre_impl[sz_blk_4 - 1] = i ^ iv_tail;
+			preImpl[szBlk4 - 1] = i ^ ivTail;
 
-			this._cipher.encrypt(pre, buf);
-			for (j = 0; j < sz_blk_4; j++)
-				res.push(buf_impl[j] ^
-				    plaintext._buf[pos + j]);
+			_cipher.encrypt(pre, buf);
+			for (let j = 0; j < szBlk4; j++)
+				res.push(bufImpl[j] ^ plaintextImpl[pos + j]);
 
-			pos += sz_blk_4;
+			pos += szBlk4;
 		}
 
 		// encrypt partial block
 		if (left) {
-			pre_impl[sz_blk_4 - 1] = blocks ^ iv_tail;
+			preImpl[szBlk4 - 1] = blocks ^ ivTail;
 
-			this._cipher.encrypt(pre, buf);
-			for (i = 0; i < left>>2; i++)
-				res.push(buf_impl[i] ^
-				    plaintext._buf[pos + i]);
-			if (left < sz_blk) {
-				var x = buf_impl[i] ^ plaintext._buf[pos + i];
+			_cipher.encrypt(pre, buf);
+			for (let i = 0; i < left>>2; i++)
+				res.push(bufImpl[i] ^ plaintextImpl[pos + i]);
+			if (left < szBlk) {
+				let x = bufImpl[i] ^ plainTextImpl[pos + i];
 				switch (left & 3) {
 				case 1: x &= 0xff000000; break;
 				case 2: x &= 0xffff0000; break;
@@ -99,7 +98,7 @@ Crypt.prototype.encrypt = function(plaintext, sz)
 		throw 'No such block mode';
 	}
 
-	return new Buffer(res);
+	return new ByteArray(res);
 }
 
 /** Decrypt data
@@ -107,16 +106,14 @@ Crypt.prototype.encrypt = function(plaintext, sz)
  * \param sz		Size of plaintext in bytes
  * \returns		The decrypted data
  */
-Crypt.prototype.decrypt = function(ciphertext, sz)
-{
-	var res;
-
+Crypt.prototype.decrypt = function(ciphertext, sz) {
 	switch (this._mode) {
 	case Crypt.MODE_CTR:
-		res = this.encrypt(ciphertext, sz);
-		break;
+		return this.encrypt(ciphertext, sz);
 	default:
 		throw 'No such block mode';
 	}
-	return res;
 }
+
+return Crypt;
+})();

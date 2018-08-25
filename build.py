@@ -1,24 +1,26 @@
-#!/usr/bin/python2
+#!/usr/bin/env python3
 
 import heapq
 import os
 import sys
+from typing import Dict, Iterable, List, TextIO
 
 LICENSE_LINES = 13
 
 DEP = {}
-DEP['buffer'] = ['long']
+DEP['byte_array'] = ['error', 'long']
 DEP['cipher'] = []
-DEP['crypt'] = []
+DEP['crypt'] = ['byte_array']
+DEP['error'] = []
 DEP['hash'] = []
-DEP['hmac'] = ['buffer']
-DEP['long'] = []
-DEP['pbkdf2'] = ['buffer', 'hmac']
-DEP['serpent'] = ['buffer', 'cipher']
-DEP['tiger'] = ['buffer', 'hash', 'long']
-DEP['whirlpool'] = ['buffer', 'hash', 'long']
+DEP['hmac'] = ['byte_array']
+DEP['long'] = ['error']
+DEP['pbkdf2'] = ['byte_array', 'hmac']
+DEP['serpent'] = ['byte_array', 'cipher']
+DEP['tiger'] = ['byte_array', 'hash', 'long']
+DEP['whirlpool'] = ['byte_array', 'hash']
 
-def combine(req):
+def combine(req: Iterable[str]) -> Dict[str, int]:
 	'''Give mapping of NAME -> DEPENDENTS.'''
 	res = {}
 	stack = []
@@ -28,20 +30,20 @@ def combine(req):
 	while stack:
 		s = stack.pop()
 		for d in DEP[s]:
-			if not res.has_key(d):
+			if d in res:
+				res[d] += 1
+			else:
 				res[d] = 1
 				stack.append(d)
-			else:
-				res[d] += 1
 	return res
 
-def get_order(names):
+def get_order(names: Iterable[str]) -> List[str]:
 	'''Order the packages and their dependencies so that all packages
 	come after any dependents.'''
 	# verify that all keys are used
 	for n in names:
-		if not DEP.has_key(n):
-			print >>sys.stderr, 'unrecognized key: %s' % n
+		if n not in DEP:
+			print('unrecognized key: %s' % n, file=sys.stderr)
 			sys.exit(1)
 
 	counts = combine(names)
@@ -51,17 +53,15 @@ def get_order(names):
 	# are ignored; also, there's a definite assumption that
 	# 2*len(counts) is enough space
 
-	queue = []
-	for (key, value) in counts.iteritems():
-		queue.append((value,key))
+	queue = [(v,k) for (k,v) in counts.items()]
 	heapq.heapify(queue)
 
 	order = []
-	used = {}
+	used: Dict[str, bool] = {}
 	while queue:
 		# get min
 		(_, name) = heapq.heappop(queue)
-		if used.has_key(name):
+		if name in used:
 			continue
 
 		# add to list
@@ -75,28 +75,27 @@ def get_order(names):
 	order.reverse()
 	return order
 
-def output_file(out, fin, keep_license):
-	eof = False
+def output_file(out: TextIO, fin: TextIO, keep_license: bool) -> None:
 	skip = LICENSE_LINES
 	if keep_license: skip = 0
-	while not eof:
+	while True:
 		line = fin.readline()
 		if not line:
-			eof = True
-			continue
+			break
 		if skip:
 			skip -= 1
 			continue
 		out.write(line)
 
-def output_files(out, paths):
+def output_files(out: TextIO, paths: List[str]) -> None:
 	first = True
 	for p in paths:
-		output_file(out, file(p, 'r'), first)
+		with open(p, 'r') as fin:
+			output_file(out, fin, first)
 		first = False
 
 if len(sys.argv) < 2:
-	print (
+	print(
 '''usage: %s MODULE... > OUTFILE
 
 ex:    %s pbkdf2 tiger > my_crypto.js
