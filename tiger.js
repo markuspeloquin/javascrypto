@@ -62,8 +62,18 @@ Tiger.prototype.update = function(buf, sz) {
 	if (_sz + sz < BLOCK) {
 		// buffer won't fill
 		// copy sz bytes
-		for (let i = 0; i < sz; i++)
-			_buf.set(_sz++, buf.get(src++));
+		if ((_sz | sz | src) & 3) {
+			for (let i = 0; i < sz; i++)
+				_buf.set(_sz++, buf.get(src++));
+		} else {
+			const sz32 = sz >>> 2;
+			let _sz32 = _sz >>> 2;
+			let src32 = src >>> 2;
+			for (let i = 0; i < sz32; i++)
+				_buf.set32(_sz32++, buf.get32(src32++));
+			_sz = _sz32 << 2;
+			src = src32 << 2;
+		}
 		this._sz = _sz;
 		return;
 	}
@@ -71,8 +81,19 @@ Tiger.prototype.update = function(buf, sz) {
 	// if data remaining in ctx
 	if (_sz) {
 		const bytes = BLOCK - _sz;
-		for (let i = 0; i < bytes; i++)
-			_buf.set(_sz++, buf.get(src++));
+		if ((_sz | sz | src) & 3) {
+			for (let i = 0; i < bytes; i++)
+				_buf.set(_sz++, buf.get(src++));
+		} else {
+			const sz32 = sz >>> 2;
+			let _sz32 = _sz >>> 2;
+			let src32 = src >>> 2;
+			for (let i = 0; i < sz32; i++)
+				_buf.set32(_sz32++, buf.get32(src32++));
+			_sz = _sz32 << 2;
+			src = src32 << 2;
+		}
+
 		_buf.swap64(0, BLOCK >>> 3);
 		_compress(_buf, this._res);
 		sz -= bytes;
@@ -80,8 +101,16 @@ Tiger.prototype.update = function(buf, sz) {
 	}
 
 	while (sz >= BLOCK) {
-		for (let i = 0; i < BLOCK; i++)
-			_buf.set(i, buf.get(src++));
+		if (src & 3) {
+			for (let i = 0; i < BLOCK; i++)
+				_buf.set(i, buf.get(src++));
+		} else {
+			const block32 = BLOCK >>> 2;
+			let src32 = src >>> 2;
+			for (let i = 0; i < block32; i++)
+				_buf.set32(i, buf.get32(src32++));
+			src = src32 << 2;
+		}
 		_buf.swap64(0, BLOCK >>> 3);
 		_compress(_buf, this._res);
 		sz -= BLOCK;
@@ -89,8 +118,16 @@ Tiger.prototype.update = function(buf, sz) {
 
 	if (sz) {
 		// fill context buffer with the remaining bytes
-		for (let i = 0; i < sz; i++)
-			_buf.set(i, buf.get(src++));
+		if ((sz | src) & 3) {
+			for (let i = 0; i < sz; i++)
+				_buf.set(i, buf.get(src++));
+		} else {
+			const sz32 = sz >>> 2;
+			let src32 = src >>> 2;
+			for (let i = 0; i < sz32; i++)
+				_buf.set32(i, buf.get32(src32++));
+			src = src32 << 2;
+		}
 	}
 	this._sz = sz;
 }

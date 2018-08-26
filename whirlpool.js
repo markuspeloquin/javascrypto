@@ -59,31 +59,67 @@ Whirlpool.prototype.update = function(buf, sz) {
 
 	if (_pos + sz < BLOCK) {
 		// buffer will not fill
-		for (let i = 0, j = _pos; i < sz; i++)
-			_buf.set(j++, buf.get(i));
-		this._pos = _pos + sz;
+		if ((_pos | sz) & 3) {
+			for (let i = 0; i < sz; i++)
+				_buf.set(_pos++, buf.get(i));
+		} else {
+			// both are aligned
+			const sz32 = sz >>> 2;
+			let _pos32 = _pos >>> 2;
+			for (let i = 0; i < sz32; i++)
+				_buf.set32(_pos32++, buf.get32(i));
+			_pos = _pos32 << 2;
+		}
+		this._pos = _pos;
 		return;
 	}
 
 	// do first (full) block
 	const bytes = BLOCK - _pos;
-	for (let i = 0, j = _pos; i < bytes; i++)
-		_buf.set(j++, buf.get(i));
+	if ((_pos | bytes) & 3) {
+		for (let i = 0; i < bytes; i++)
+			_buf.set(_pos++, buf.get(i));
+	} else {
+		// both are aligned
+		const bytes32 = bytes >>> 2;
+		let _pos32 = _pos >>> 2;
+		for (let i = 0; i < bytes32; i++)
+			_buf.set32(_pos32++, buf.get32(i));
+		_pos = _pos32 << 2;
+	}
 	_processBuf(this);
 	let srcpos = bytes;
 	sz -= bytes;
 
 	// do subsequent (full) blocks
 	while (sz >= BLOCK) {
-		for (let i = 0; i < BLOCK; i++)
-			_buf.set(i, buf.get(srcpos++));
+		if (srcpos & 3) {
+			for (let i = 0; i < BLOCK; i++)
+				_buf.set(i, buf.get(srcpos++));
+		} else {
+			// both are aligned
+			const block32 = BLOCK >>> 2;
+			let srcpos32 = srcpos >>> 2;
+			for (let i = 0; i < block32; i++)
+				_buf.set32(i, buf.get32(srcpos32++));
+			srcpos = srcpos32 << 2;
+		}
 		_processBuf(this);
 		sz -= BLOCK;
 	}
 
 	// copy next partial block for later
-	for (let i = 0; i < sz; i++)
-		_buf.set(i, buf.get(srcpos++));
+	if ((srcpos | sz) & 3) {
+		for (let i = 0; i < sz; i++)
+			_buf.set(i, buf.get(srcpos++));
+	} else {
+		// both are aligned
+		const sz32 = sz >>> 2;
+		let srcpos32 = srcpos >>> 2;
+		for (let i = 0; i < sz32; i++)
+			_buf.set32(i, buf.get32(srcpos32++));
+		srcpos = srcpos32 << 2;
+	}
 	this._pos = sz;
 }
 
