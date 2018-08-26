@@ -483,7 +483,7 @@ ByteArray.fromHex = str => {
 			buf[pos++] = accum | c;
 		}
 		accumSz++;
-		accumSz &= 0x3;
+		accumSz &= 0x7;
 	}
 	if (accumSz)
 		buf[pos++] = accum;
@@ -510,9 +510,9 @@ ByteArray.fromBase64 = str => {
 
 		accum <<= 6;
 		// disallow more than two pad chars or anything after a pad
-		if (c == -1)
+		if (c == -1) {
 			if (++pad == 3) throw new RuntimeError('invalid parameter');
-		else if (pad) {
+		} else if (pad) {
 			// non-trailing padding
 			throw new RuntimeError('invalid parameter');
 		} else
@@ -528,18 +528,20 @@ ByteArray.fromBase64 = str => {
 				break;
 			case 2:
 				buf[buf.length-1] |= accum >> 8;
-				buf.push(accum << 24);
+				if (!pad)
+					buf.push(accum << 24);
 				break;
 			default:
 				buf[buf.length-1] |= accum >> 16;
-				buf.push(accum << 16);
+				if (pad < 2)
+					buf.push(accum << 16);
 			}
 			accum = 0;
 			accumSz = 0;
 			sz += 3;
 		}
 	}
-	return new ByteArray(sz, buf);
+	return new ByteArray(sz - pad, buf);
 }
 
 ByteArray.fromLatin = str => {
