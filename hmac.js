@@ -30,34 +30,49 @@ Hmac.prototype = {};
 Hmac.prototype.constructor = Hmac;
 
 /** Initialize the HMAC context
- * \param key	BE key
- * \param sz	Key length in bytes
+ * \param key	Key ByteArray
  */
-Hmac.prototype.init = function(key, sz) {
+Hmac.prototype.init = function(key) {
 	const _fn = this._fn;
 	const _key = this._key;
-	const _keyImpl = _key._buf;
+	const sz = key.size();
 
 	const szBlock = _fn.blockSize();
-	const szBlock4 = szBlock >> 2;
-	var szDigest = _fn.digestSize();
+	const szBlock32 = szBlock >>> 2;
+	const szDigest = _fn.digestSize();
+	const szDigest32 = szDigest >>> 2;
 
+	let end;
 	if (sz > szBlock) {
 		_fn.init();
 		_fn.update(key, sz);
 		const digest = _fn.end();
-		_key.copy(0, digest, 0, szDigest);
-		sz = szDigest;
-	} else
-		_key.copy(0, key, 0, sz);
+		for (let i = 0; i < szDigest32; i++)
+			_key.set32(i, digest.get32(i));
 
-	while (sz < szBlock)
-		_keyImpl[sz++] = 0;
+		end = szDigest;
+	} else {
+		const sz32 = sz >>> 2;
+		// copy full words
+		for (let i = 0; i < sz32; i++)
+			_key.set32(i, key.get32(i));
+		// copy partial
+		for (let i = sz32 << 2; i < sz; i++)
+			_key.set(i, key.get(i));
+
+		// zero a partial word
+		end = sz;
+		while (end & 3)
+			_key.set(end++, 0);
+	}
+
+	// zero the rest of the words
+	for (let i = end >>> 2; i < szBlock32; i++)
+		_key.set32(i, 0);
 
 	const keyIpad = new ByteArray(szBlock);
-	const keyIpadImpl = keyIpad._buf;
-	for (let i = 0; i < szBlock4; i++)
-		keyIpadImpl[i] = _keyImpl[i] ^ IPAD;
+	for (let i = 0; i < szBlock32; i++)
+		keyIpad.set32(i, _key.get32(i) ^ IPAD);
 
 	_fn.init();
 	_fn.update(keyIpad, szBlock);
@@ -75,16 +90,14 @@ Hmac.prototype.update = function(buf, sz) {
 Hmac.prototype.end = function() {
 	const _fn = this._fn;
 	const _key = this._key;
-	const _keyImpl = _key._buf;
 
 	const szBlock = _fn.blockSize();
-	const szBlock4 = szBlock >> 2;
+	const szBlock32 = szBlock >> 2;
 	const szDigest = _fn.digestSize();
 
 	const keyOpad = new ByteArray(szBlock);
-	const keyOpadImpl = keyOpad._buf;
-	for (let i = 0; i < szBlock4; i++)
-		keyOpadImpl[i] = _keyImpl[i] ^ OPAD;
+	for (let i = 0; i < szBlock32; i++)
+		keyOpad.set32(i, _key.get32(i) ^ OPAD);
 
 	const midDigest = _fn.end();
 	_fn.init();
