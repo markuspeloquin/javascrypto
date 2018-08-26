@@ -81,10 +81,11 @@ Crypt.prototype.encrypt = function(plaintext, sz) {
 			preImpl[szBlk4 - 1] = blocks ^ ivTail;
 
 			_cipher.encrypt(pre, buf);
-			for (let i = 0; i < left>>2; i++)
+			let i;
+			for (i = 0; i < left >> 2; i++)
 				res.push(bufImpl[i] ^ plaintextImpl[pos + i]);
-			if (left < szBlk) {
-				let x = bufImpl[i] ^ plainTextImpl[pos + i];
+			if (left & 3) {
+				let x = bufImpl[i] ^ plaintextImpl[pos + i];
 				switch (left & 3) {
 				case 1: x &= 0xff000000; break;
 				case 2: x &= 0xffff0000; break;
@@ -93,12 +94,11 @@ Crypt.prototype.encrypt = function(plaintext, sz) {
 				res.push(x);
 			}
 		}
-		break;
+
+		return new ByteArray(sz, res);
 	default:
 		throw 'No such block mode';
 	}
-
-	return new ByteArray(res);
 }
 
 /** Decrypt data
