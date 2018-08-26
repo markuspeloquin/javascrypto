@@ -136,7 +136,6 @@ function startTests() {
 	const runTiger = checkboxValue('run_tiger');
 	const runWhirlpool = checkboxValue('run_whirlpool');
 	const runSerpent = checkboxValue('run_serpent');
-	const runLongtests = checkboxValue('run_longtests');
 
 	const tiger = runTiger ? new Tiger : null;
 	const whirlpool = runWhirlpool ? new Whirlpool : null;
@@ -211,19 +210,21 @@ function startTests() {
 		    },
 		    hash: '1C14795529FD9F207A958F84C52F11E887FA0CABDFD91BFD',
 		});
-	}
-	if (runTiger && runLongtests) {
 		tests.push({
 		    fn: tiger,
 		    group: 'tiger',
 		    testnum: 9,
 		    generator: function(hashfn) {
-			    const buf = ByteArray.fromText('aaaaaaaaaa');
-			    for (let i = 0; i < 100000; i++)
-				    hashfn.update(buf, 10);
+			// fully aligned blocks (size 4*n) are more optimal
+			// 1 million 'a'
+			const buf = ByteArray.fromText('aaaaaaaaaaaaaaaa');
+			const bufsz = buf.size();
+			const count = 1000000 / bufsz;
+			if (bufsz * count != 1000000) throw 'not aligned';
+			for (let i = 0; i < count; i++)
+				hashfn.update(buf, bufsz);
 		    },
-		    hash: '6DB0E2729CBEAD93D715C6A7D36302E9B3CEE0D2BC314B41',
-		    longtest: true,
+		    hash: '6DB0E2729CBEAD93D715C6A7D36302E9B3CEE0D2BC314B41'
 		});
 	}
 	if (runWhirlpool) {
@@ -305,9 +306,9 @@ function startTests() {
 		    group: 'whirlpool',
 		    testnum: 7,
 		    generator: function(hashfn) {
-			    const buf = ByteArray.fromText('1234567890');
-			    for (let i = 0; i < 8; i++)
-				    hashfn.update(buf, 10);
+			const buf = ByteArray.fromText('1234567890');
+			for (let i = 0; i < 8; i++)
+				hashfn.update(buf, buf.size());
 		    },
 		    hash:
 			'466EF18BABB0154D25B9D38A6414F5C0' +
@@ -326,25 +327,28 @@ function startTests() {
 			'16BDC8031BC5BE1B7B947639FE050B56' +
 			'939BAAA0ADFF9AE6745B7B181C3BE3FD',
 		});
-	}
-	if (runWhirlpool && runLongtests)
 		tests.push({
 		    fn: whirlpool,
 		    group: 'whirlpool',
 		    testnum: 9,
 		    generator: function(hashfn) {
-			    const buf = ByteArray.fromText('aaaaaaaaaa');
-			    for (let i = 0; i < 100000; i++)
-				    hashfn.update(buf, 10);
+			// fully aligned blocks (size 4*n) are more optimal
+			// 1 million 'a'
+			const buf = ByteArray.fromText('aaaaaaaaaaaaaaaa');
+			const bufsz = buf.size();
+			const count = 1000000 / bufsz;
+			if (bufsz * count != 1000000) throw 'not aligned';
+			for (let i = 0; i < count; i++)
+				hashfn.update(buf, bufsz);
 		    },
 		    hash:
 			'0C99005BEB57EFF50A7CF005560DDF5D' +
 			'29057FD86B20BFD62DECA0F1CCEA4AF5' +
 			'1FC15490EDDC47AF32BB2B66C34FF9AD' +
-			'8C6008AD677F77126953B226E4ED8B01',
-		    longtest: true,
+			'8C6008AD677F77126953B226E4ED8B01'
 		});
-	if (runSerpent && runLongtests)
+	}
+	if (runSerpent)
 		tests.push(...serpentTests);
 
 	testsRunning = true;
