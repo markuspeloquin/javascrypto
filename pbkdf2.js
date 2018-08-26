@@ -17,61 +17,71 @@
 const pbkdf2 = (() => {
 
 /** Password-based key derivation function
- * \param hmacfn	Hmac object.
- * \param passwd	Password
- * \param passwdsz	Size of passwd in bytes
- * \param salt		Salt...
- * \param saltsz	Size of salt in bytes
+ * \param hmacfn	Hmac object
+ * \param passwd	Password ByteArray
+ * \param salt		Salt ByteArray
  * \param iter		How many iterations to compute
  * \param szkey		Size of the key to produce in bytes
  * \return		The generated key
  */
-function pbkdf2(hmacfn, passwd, passwdsz, salt, saltsz, iter, szkey) {
+function pbkdf2(hmacfn, passwd, salt, iter, szkey) {
 	const szDigest = hmacfn.digestSize();
 	const blocks = (szkey / szDigest) ^ 0;
 	const partial = szkey % szDigest;
-	const res = new ByteArray((szkey + 3) >>> 2);
-	const indexbuf = new ByteArray([1]);
+	const res = new ByteArray(szkey);
+	const indexbuf = new ByteArray(4, [1]);
 	const indexbufImpl = indexbuf._buf;
 
+	let pos = 0;
 	for (let i = 0; i < blocks; i++) {
-		pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter,
-		    indexbuf, res, i * szDigest);
+		pbkdf2_f(hmacfn, passwd, salt, iter, indexbuf, res, pos);
 		indexbufImpl[0]++;
+		pos += szDigest;
 	}
 
 	if (partial) {
 		const bufPartial = new ByteArray(szDigest);
-		pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter,
-		    indexbuf, bufPartial, 0);
-		res.copy(blocks * szDigest, bufPartial, 0, partial);
+		pbkdf2_f(hmacfn, passwd, salt, iter, indexbuf, bufPartial, 0);
+
+		// copy words
+		let pos32 = pos >>> 2;
+		const partial32 = partial >>> 2;
+		for (let i = 0; i < partial32; i++)
+			res.set32(pos32++, bufPartial.get32(i));
+		pos = pos32 << 2;
+
+		// copy any remaining bytes
+		for (let i = partial32 << 2; i < partial; i++)
+			res.set(pos++, bufPartial.get(i));
 	}
 
 	return res;
 }
 
 // PBKDF2's F function
-function pbkdf2_f(hmacfn, passwd, passwdsz, salt, saltsz, iter, indexbuf,
-    res, resoff) {
+function pbkdf2_f(hmacfn, passwd, salt, iter, indexbuf, res, resoff) {
 	const szDigest = hmacfn.digestSize();
-	const resImpl = res._buf;
+	const szDigest32 = szDigest >>> 2;
 
-	hmacfn.init(passwd, passwdsz);
-	hmacfn.update(salt, saltsz);
+	hmacfn.init(passwd);
+	hmacfn.update(salt, salt.size());
 	hmacfn.update(indexbuf, 4);
-	const u0 = hmacfn.end();
+	let u = hmacfn.end();
 
-	res.copy(resoff, u0, 0, szDigest);
-	resoff >>>= 2;
+	const resoff32 = resoff >>> 2;
+	let pos32 = resoff32;
+	for (let i = 0; i < szDigest32; i++)
+		res.set32(pos32++, u.get32(i));
+
 	for (let i = 1; i < iter; i++) {
-		hmacfn.init(passwd, passwdsz);
+		hmacfn.init(passwd);
 		hmacfn.update(u, szDigest);
-		const u = hmacfn.end();
-		const uImpl = u._buf;
-		let j = 0;
-		for (const val of uImpl) {
-			// assume resoff is a multiple of 4
-			resImpl[resoff + j++] ^= val;
+		u = hmacfn.end();
+
+		pos32 = resoff32;
+		for (let i = 0; i < szDigest32; i++) {
+			res.set32(pos32, res.get32(pos32) ^ u.get32(i));
+			pos32++;
 		}
 	}
 }
