@@ -182,99 +182,36 @@ ByteArray.prototype.toHex = function(start, end) {
 	return res;
 }
 
-ByteArray.prototype.toText = function() {
-	try {
-		return this.toUtf8();
-	} catch (e) {
-		if (e instanceof EncodingError)
-			return this.toLatin();
-		throw e;
-	}
-}
-
-ByteArray.prototype.toLatin = function() {
-	const _buf = this._buf;
-	const _sz = this._sz;
-
-	if (!_sz) return '';
-
-	let res = '';
-	for (let i = 0; i < _sz; i++) {
-		let x = _buf[i >> 2];
-		switch (i & 3) {
-		case 0: x >>>= 24;            break;
-		case 1: x  >>= 16; x &= 0xff; break;
-		case 2: x  >>=  8; x &= 0xff; break;
-		default:           x &= 0xff;
-		}
-		res += String.fromCharCode(x);
-	}
-	return res;
-}
-
-ByteArray.prototype.toUtf8 = function() {
-	const _buf = this._buf;
-	const _sz = this._sz;
-
-	if (!_sz) return '';
-
-	let accum = 0;
-	let accumLeft = 0;
-
-	let res = '';
-	for (let i = 0; i < _sz; i++) {
-		let x = _buf[i >> 2];
-		switch (i & 3) {
-		case 0: x >>>= 24;            break;
-		case 1: x  >>= 16; x &= 0xff; break;
-		case 2: x  >>=  8; x &= 0xff; break;
-		default:           x &= 0xff;
-		}
-
-		if (accumLeft) {
-			// in other words (x < 0x80 || x >= 0xc0)
-			if ((x & 0xc0) != 0x80)
-				throw new EncodingError('invalid UTF-8');
-			x &= 0x3f;
-			switch (accumLeft) {
-			case 1:
-				accum |= x;
-				if (0xd800 <= accum && accum < 0xe000 ||
-				    0x110000 <= accum)
-					throw new EncodingError(
-					    'invalid UTF-8');
-				res += String.fromCharCode(accum);
-				accum = 0;
-				break;
-			case 2:
-				accum |= x << 6;
-				break;
-			case 3:
-				accum |= x << 12;
-				break;
-			default:
-				throw new AssertionError;
-			}
-			accumLeft--;
-		} else {
-			if (x < 0x80)
-				res += String.fromCharCode(x);
-			else if (x < 0xc0)
-				throw new EncodingError('invalid UTF-8');
-			else if (x < 0xe0) {
-				accum = (x & 0x1f) << 6;
-				accumLeft = 1;
-			} else if (x < 0xf0) {
-				accum = (x & 0xf) << 12;
-				accumLeft = 2;
-			} else if (x < 0xf8) {
-				accum = (x & 0x7) << 18;
-				accumLeft = 3;
-			} else
-				throw new EncodingError('invalid UTF-8');
+ByteArray.prototype.toText = function(enc=null) {
+	if (enc == null) {
+		try {
+			return this._toUtf8();
+		} catch (e) {
+			if (!(e instanceof EncodingError))
+				throw e;
+			enc = 'latin1';
 		}
 	}
-	return res;
+	switch (enc) {
+	case 'l1':
+	case 'latin1':
+	case 'ISO-8859-1':
+	case 'ISO_8859-1':
+	case 'iso-8859-1':
+	case 'iso_8859-1':
+		return this._toLatin();
+	case 'UTF-8':
+	case 'utf-8':
+		return this._toUtf8();
+	case 'UTF-16BE':
+	case 'utf-16be':
+		return this._toUtf16(true);
+	case 'UTF-16LE':
+	case 'utf-16le':
+		return this._toUtf16(false);
+	default:
+		throw new EncodingError("invalid encoding: " + enc);
+	}
 }
 
 ByteArray.prototype.get = function(index) {
@@ -544,158 +481,376 @@ ByteArray.fromBase64 = str => {
 	return new ByteArray(sz - pad, buf);
 }
 
-ByteArray.fromLatin = str => {
-	const buf = [];
-	let sz = 0;
-
-	// a buffer before appending to buf; fill high bytes first
-	let accum = 0;
-	let accumSz = 0;
-
-	for (const ch of str.split('')) {
-		const code = ch.charCodeAt(0);
-		if (code >= 0x100)
-			throw new RuntimeError('invalid Latin1');
-		switch (accumSz) {
-		case 0:
-			accum = code << 24;
-			accumSz = 1;
-			break;
-		case 1:
-			accum |= code << 16;
-			accumSz = 2;
-			break;
-		case 2:
-			accum |= code << 8;
-			accumSz = 3;
-			break;
-		default:
-			buf.push(accum | code);
-			accum = 0;
-			accumSz = 0;
-		}
-		sz++;
-	}
-	if (accumSz)
-		buf.push(accum);
-	return new ByteArray(sz, buf);
-}
-
 /** convert a text string to bytes
  * \param str	text string
+ * \param enc	how to encode characters
  * \return	the buffer
  */
-ByteArray.fromText = str => {
-	const buf = [];
-	let sz = 0;
+ByteArray.fromText = (str, enc='utf-8') => {
+	switch (enc) {
+	case 'l1':
+	case 'latin1':
+	case 'ISO-8859-1':
+	case 'ISO_8859-1':
+	case 'iso-8859-1':
+	case 'iso_8859-1':
+		return _fromLatin(str);
+	case 'UTF-8':
+	case 'utf-8':
+		return _fromUtf8(str);
+	case 'UTF-16BE':
+	case 'utf-16be':
+		return _fromUtf16(str, true);
+	case 'UTF-16LE':
+	case 'utf-16le':
+		return _fromUtf16(str, false);
+	default:
+		throw new EncodingError("invalid encoding: " + enc);
+	}
+}
 
-	// a buffer before appending to buf; fill high bytes first
-	let accum = 0;
-	let accumSz = 0;
+ByteArray.generateRandom = size => {
+	let random;
+	if (window.crypto === undefined) {
+		const buffer = new Buffer;
+		for (let i = 0; i < size; i++)
+			buffer.push8((Math.random() * 0x100) ^ 0);
+		return new ByteArray(size, buffer.finalize());
+	} else {
+		console.info('here');
+		let tmp = new Uint32Array((size + 3) >> 2);
+		crypto.getRandomValues(tmp);
+		switch (size & 3) {
+		case 1:
+			tmp[tmp.length - 1] &= 0xff000000;
+			break;
+		case 2:
+			tmp[tmp.length - 1] &= 0xffff0000;
+			break;
+		case 3:
+			tmp[tmp.length - 1] &= 0xffffff00;
+		}
+		const random = new ByteArray(size);
+		for (let i = 0; i < tmp.length; i++)
+			random._buf[i] = tmp[i];
+		return random;
+	}
+}
+
+function Buffer() {
+	this._buf = [];
+	this._accum = 0;
+	this._accumSz = 0;
+}
+Buffer.prototype = {};
+Buffer.prototype.constructor = Buffer;
+
+Buffer.prototype.push8 = function(val) {
+	switch (this._accumSz) {
+	case 0:
+		this._accum = val << 24;
+		this._accumSz = 1;
+		break;
+	case 1:
+		this._accum |= val << 16;
+		this._accumSz = 2;
+		break;
+	case 2:
+		this._accum |= val << 8;
+		this._accumSz = 3;
+		break;
+	default:
+		this._buf.push(this._accum | val);
+		this._accumSz = 0;
+	}
+}
+
+Buffer.prototype.push16 = function(val) {
+	switch (this._accumSz) {
+	case 0:
+		this._accum = val << 16;
+		this._accumSz = 2;
+		break;
+	case 1:
+		this._accum |= val << 8;
+		this._accumSz = 3;
+		break;
+	case 2:
+		this._buf.push(this._accum | val);
+		this._accumSz = 0;
+		break;
+	default:
+		this._buf.push(this._accum | (val >>> 8));
+		this._accum = val << 24;
+		this._accumSz = 1;
+	}
+}
+
+Buffer.prototype.push24 = function(val) {
+	switch (this._accumSz) {
+	case 0:
+		this._accum = val << 8;
+		this._accumSz = 3;
+		break;
+	case 1:
+		this._buf.push(this._accum | val);
+		this._accumSz = 0;
+		break;
+	case 2:
+		this._buf.push(this._accum | (val >>> 8));
+		this._accum = val << 24;
+		this._accumSz = 1;
+		break;
+	default:
+		this._buf.push(this._accum | (val >>> 16));
+		this._accum = val << 16;
+		this._accumSz = 2;
+	}
+}
+
+Buffer.prototype.push32 = function(val) {
+	switch (this._accumSz) {
+	case 0:
+		this._buf.push(val);
+		break;
+	case 1:
+		this._buf.push(this._accum | (val >>> 24));
+		this._accum = val << 8;
+		break;
+	case 2:
+		this._buf.push(this._accum | (val >>> 16));
+		this._accum = val << 16;
+		break;
+	default:
+		this._buf.push(this._accum | (val >>> 8));
+		this._accum = val << 24;
+	}
+}
+
+Buffer.prototype.finalize = function() {
+	const out = this._buf;
+	const _accum = this._accum;
+	const _accumSz = this._accumSz;
+	let len = out.length << 2;
+	if (_accumSz) {
+		out.push(_accum);
+		len += _accumSz;
+	}
+
+	// reset
+	this._buf = [];
+	this._accumSz = 0;
+
+	return new ByteArray(len, out);
+}
+
+const _fromLatin = str => {
+	const buf = new Buffer;
 
 	for (const ch of str.split('')) {
 		const code = ch.charCodeAt(0);
-		if (code < 0x80) {
-			switch (accumSz) {
-			case 0:
-				accum = code << 24;
-				accumSz = 1;
-				break;
-			case 1:
-				accum |= code << 16;
-				accumSz = 2;
-				break;
-			case 2:
-				accum |= code << 8;
-				accumSz = 3;
-				break;
-			default:
-				buf.push(accum | code);
-				accum = 0;
-				accumSz = 0;
-			}
-			sz++;
-		} else if (code < 0x800) {
+		if (code & ~0xff)
+			throw new RuntimeError('invalid Latin1');
+		buf.push8(code);
+	}
+	return buf.finalize();
+}
+
+const _fromUtf8 = str => {
+	const buf = new Buffer;
+
+	for (const ch of str.split('')) {
+		const code = ch.charCodeAt(0);
+		if (code < 0x80)
+			buf.push8(code);
+		else if (code < 0x800) {
 			let c = code;
-			const c1 = 0x80 | (c & 0x3f); c >>= 6;
-			const c0 = 0xc0 | c;
-			switch (accumSz) {
-			case 0:
-				accum = (c0 << 24) | (c1 << 16);
-				accumSz = 2;
-				break;
-			case 1:
-				accum |= (c0 << 16) | (c1 << 8);
-				accumSz = 3;
-				break;
-			case 2:
-				buf.push(accum | (c0 << 8) | c1);
-				accum = 0;
-				accumSz = 0;
-				break;
-			default:
-				buf.push(accum | c0);
-				accum = c1 << 24;
-				accumSz = 1;
-			}
-			sz += 2;
+			const c1 = c & 0x3f; c >>= 6;
+			const c0 = c;
+			buf.push16(0xc080 | (c0 << 8) | c1);
 		} else if (code < 0x10000) {
 			if (0xd800 <= code && code < 0xe000 || 0x110000 <= code)
-				throw new EncodingError('invalid UTF-8');
+				throw new EncodingError('invalid Unicode');
 			let c = code;
-			const c2 = 0x80 | (c & 0x3f); c >>= 6;
-			const c1 = 0x80 | (c & 0x3f); c >>= 6;
-			const c0 = 0xe0 | c;
-			switch (accumSz) {
-			case 0:
-				accum = (c0 << 24) | (c1 << 16) | (c2 << 8);
-				accumSz = 3;
-				break;
-			case 1:
-				buf.push(accum | (c0 << 16) | (c1 << 8) | c2);
-				accum = 0;
-				accumSz = 0;
-				break;
-			case 2:
-				buf.push(accum | (c0 << 8) | c1);
-				accum = c2 << 24;
-				accumSz = 1;
-				break;
-			default:
-				buf.push(accum | c0);
-				accum = (c1 << 24) | (c2 << 16);
-				accumSz = 2;
-			}
-			sz += 3;
+			const c2 = c & 0x3f; c >>= 6;
+			const c1 = c & 0x3f; c >>= 6;
+			const c0 = c;
+			buf.push24(0xe08080 | (c0 << 16) | (c1 << 8) | c2);
 		} else if (code < 0x200000) {
 			let c = code;
-			const c3 = 0x80 | (c & 0x3f); c >>= 6;
-			const c2 = 0x80 | (c & 0x3f); c >>= 6;
-			const c1 = 0x80 | (c & 0x3f); c >>= 6;
-			const c0 = 0xf0 | c;
-			switch (accumSz) {
-			case 0:
-				buf.push((c0 << 24) | (c1 << 16) | (c2 << 8) | c3);
-				break;
+			const c3 = c & 0x3f; c >>= 6;
+			const c2 = c & 0x3f; c >>= 6;
+			const c1 = c & 0x3f; c >>= 6;
+			const c0 = c;
+			buf.push32(0xf0808080 | (c0 << 24) | (c1 << 16) | (c2 << 8) | c3);
+		} else
+			throw new EncodingError('invalid Unicode');
+	}
+	return buf.finalize();
+}
+
+const _fromUtf16 = (str, bigEndian) => {
+	const buf = [];
+
+	let swap;
+	if (bigEndian)
+		swap = x => x;
+	else
+		swap = _swap16_lo;
+
+	for (const ch of str.split('')) {
+		const code = ch.charCodeAt(0);
+		if (code < 0xd800)
+			buf.push16(swap(code));
+		else if (code < 0x10000) {
+			if (code < 0xe000)
+				throw new EncodingError('invalid Unicode');
+			buf.push16(swap(code));
+		} else if (code < 0x110000) {
+			let c = code - 0x10000;
+			const c1 = 0xdc00 + (c & 0x3ff); c >>= 10;
+			const c0 = 0xd800 + c;
+			buf.push16(swap(c0));
+			buf.push16(swap(c1));
+		} else
+			throw new EncodingError('invalid Unicode');
+	}
+	return buf.finalize();
+}
+
+ByteArray.prototype._toLatin = function() {
+	const _buf = this._buf;
+	const _sz = this._sz;
+
+	if (!_sz) return '';
+
+	let res = '';
+	for (let i = 0; i < _sz; i++) {
+		let x = _buf[i >> 2];
+		switch (i & 3) {
+		case 0: x >>>= 24;            break;
+		case 1: x  >>= 16; x &= 0xff; break;
+		case 2: x  >>=  8; x &= 0xff; break;
+		default:           x &= 0xff;
+		}
+		res += String.fromCharCode(x);
+	}
+	return res;
+}
+
+ByteArray.prototype._toUtf8 = function() {
+	const _buf = this._buf;
+	const _sz = this._sz;
+
+	if (!_sz) return '';
+
+	let accum = 0;
+	let accumLeft = 0;
+
+	let res = '';
+	for (let i = 0; i < _sz; i++) {
+		let x = _buf[i >> 2];
+		switch (i & 3) {
+		case 0: x >>>= 24;            break;
+		case 1: x  >>= 16; x &= 0xff; break;
+		case 2: x  >>=  8; x &= 0xff; break;
+		default:           x &= 0xff;
+		}
+
+		if (accumLeft) {
+			// in other words (x < 0x80 || x >= 0xc0)
+			if ((x & 0xc0) != 0x80)
+				throw new EncodingError('invalid UTF-8');
+			x &= 0x3f;
+			switch (accumLeft) {
 			case 1:
-				buf.push(accum | (c0 << 16) | (c1 << 8) | c2);
-				accum = c3 << 24;
+				accum |= x;
+				if (0xd800 <= accum && accum < 0xe000 ||
+				    0x110000 <= accum)
+					throw new EncodingError(
+					    'invalid UTF-8');
+				res += String.fromCharCode(accum);
+				accum = 0;
 				break;
 			case 2:
-				buf.push(accum | (c0 << 8) | c1);
-				accum = (c2 << 24) | (c3 << 16);
+				accum |= x << 6;
+				break;
+			case 3:
+				accum |= x << 12;
 				break;
 			default:
-				buf.push(accum | c0);
-				accum = (c1 << 24) | (c2 << 16) | (c3 << 8);
+				throw new AssertionError;
 			}
-			sz += 4;
-		} else
-			throw new EncodingError('invalid UTF-8');
+			accumLeft--;
+		} else {
+			if (x < 0x80)
+				res += String.fromCharCode(x);
+			else if (x < 0xc0)
+				throw new EncodingError('invalid UTF-8');
+			else if (x < 0xe0) {
+				accum = (x & 0x1f) << 6;
+				accumLeft = 1;
+			} else if (x < 0xf0) {
+				accum = (x & 0xf) << 12;
+				accumLeft = 2;
+			} else if (x < 0xf8) {
+				accum = (x & 0x7) << 18;
+				accumLeft = 3;
+			} else
+				throw new EncodingError('invalid UTF-8');
+		}
 	}
-	if (accumSz)
-		buf.push(accum);
-	return new ByteArray(sz, buf);
+	return res;
+}
+
+ByteArray.prototype._toUtf16 = function(bigEndian) {
+	const _buf = this._buf;
+	const _sz = this._sz;
+
+	if (!_sz) return '';
+	if (_sz & 1) throw new EncodingError('invalid UTF-16');
+
+	let swap;
+	if (bigEndian)
+		swap = x => x;
+	else
+		swap = _swap16_lo;
+
+	let accum = 0;
+	let accumLeft = false;
+
+	let res = '';
+	const _sz2 = _sz >> 1;
+	for (let i = 0; i < _sz2; i++) {
+		let x = _buf[i >> 1];
+		if (i & 1)
+			x &= 0xffff;
+		else
+			x >>>= 16;
+		x = swap(x);
+
+		if (accumLeft) {
+			if (x < 0xdc00)
+				throw new EncodingError('invalid UTF-16');
+			else if (x < 0xe000) {
+				const code = 0x10000 + (accum | (x - 0xdc00));
+				accumLeft = false;
+				res += String.fromCharCode(code);
+			} else
+				throw new EncodingError('invalid UTF-16');
+		} else {
+			if (x < 0xd800)
+				res += String.fromCharCode(x);
+			else if (x < 0xdc00) {
+				accum = (x - 0xd800) << 10;
+				accumLeft = true;
+			} else if (x < 0xe000)
+				throw new EncodingError('invalid UTF-16');
+			else
+				res += String.fromCharCode(x);
+		}
+	}
+	return res;
 }
 
 return ByteArray;

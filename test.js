@@ -55,7 +55,7 @@ function runHashTest(test, runTime) {
 	if (msg == null)
 		test.generator(hashfn);
 	else {
-		const buf = ByteArray.fromText(msg);
+		const buf = ByteArray.fromText(msg, 'utf-8');
 		hashfn.update(buf, buf.size());
 	}
 	const digestHex = hashfn.end().toHex().toLowerCase();
@@ -190,9 +190,9 @@ function startTests() {
 		    group: 'tiger',
 		    testnum: 7,
 		    generator: function(hashfn) {
-			const b0 = ByteArray.fromText(alphabet.toUpperCase());
-			const b1 = ByteArray.fromText(alphabet);
-			const b2 = ByteArray.fromText(digits);
+			const b0 = ByteArray.fromText(alphabet.toUpperCase(), 'latin1');
+			const b1 = ByteArray.fromText(alphabet, 'latin1');
+			const b2 = ByteArray.fromText(digits, 'latin1');
 			hashfn.update(b0, b0.size());
 			hashfn.update(b1, b1.size());
 			hashfn.update(b2, b2.size());
@@ -204,7 +204,7 @@ function startTests() {
 		    group: 'tiger',
 		    testnum: 8,
 		    generator: function(hashfn) {
-			    const buf = ByteArray.fromText('1234567890');
+			    const buf = ByteArray.fromText('1234567890', 'latin1');
 			    for (let i = 0; i < 8; i++)
 				    hashfn.update(buf, 10);
 		    },
@@ -217,7 +217,7 @@ function startTests() {
 		    generator: function(hashfn) {
 			// fully aligned blocks (size 4*n) are more optimal
 			// 1 million 'a'
-			const buf = ByteArray.fromText('aaaaaaaaaaaaaaaa');
+			const buf = ByteArray.fromText('aaaaaaaaaaaaaaaa', 'latin1');
 			const bufsz = buf.size();
 			const count = 1000000 / bufsz;
 			if (bufsz * count != 1000000) throw 'not aligned';
@@ -288,9 +288,9 @@ function startTests() {
 		    group: 'whirlpool',
 		    testnum: 6,
 		    generator: function(hashfn) {
-			const b0 = ByteArray.fromText(alphabet.toUpperCase());
-			const b1 = ByteArray.fromText(alphabet);
-			const b2 = ByteArray.fromText(digits);
+			const b0 = ByteArray.fromText(alphabet.toUpperCase(), 'latin1');
+			const b1 = ByteArray.fromText(alphabet, 'latin1');
+			const b2 = ByteArray.fromText(digits, 'latin1');
 			hashfn.update(b0, b0.size());
 			hashfn.update(b1, b1.size());
 			hashfn.update(b2, b2.size());
@@ -306,7 +306,7 @@ function startTests() {
 		    group: 'whirlpool',
 		    testnum: 7,
 		    generator: function(hashfn) {
-			const buf = ByteArray.fromText('1234567890');
+			const buf = ByteArray.fromText('1234567890', 'latin1');
 			for (let i = 0; i < 8; i++)
 				hashfn.update(buf, buf.size());
 		    },
@@ -334,7 +334,7 @@ function startTests() {
 		    generator: function(hashfn) {
 			// fully aligned blocks (size 4*n) are more optimal
 			// 1 million 'a'
-			const buf = ByteArray.fromText('aaaaaaaaaaaaaaaa');
+			const buf = ByteArray.fromText('aaaaaaaaaaaaaaaa', 'latin1');
 			const bufsz = buf.size();
 			const count = 1000000 / bufsz;
 			if (bufsz * count != 1000000) throw 'not aligned';

@@ -18,13 +18,11 @@ const Crypt = (() => {
 
 /** Create a block encrypter
  * \param cipher	The Cipher object to en/decrypt with
- * \param mode		On of Crypt.MODE_*.
- * \param iv		The initial vector
+ * \param mode		One of Crypt.MODE_*
  */
-function Crypt(cipher, mode, iv) {
+function Crypt(cipher, mode) {
 	this._cipher = cipher;
 	this._mode = mode;
-	this._iv = iv;
 }
 Crypt.MODE_CTR = 0;	/**< Counter block mode */
 Crypt.prototype = {};
@@ -36,66 +34,9 @@ Crypt.prototype.constructor = Crypt;
  * \returns		The encrypted data (size could be rounded up)
  */
 Crypt.prototype.encrypt = function(plaintext, sz) {
-	if (sz > plaintext.size()) sz = plaintext.size();
-
-	const _cipher = this._cipher;
-	const _iv = this._iv;
-	const _ivImpl = _iv._buf;
-
-	const plaintextImpl = plaintext._buf;
-	const szBlk = _cipher.blockSize();
-	const szBlk4 = szBlk >> 2;
-	const blocks = (sz / szBlk) ^ 0;
-	const buf = new ByteArray(szBlk);
-	const bufImpl = buf._buf;
-	const left = sz - blocks * szBlk;
-	const res = [];
-
 	switch (this._mode) {
 	case Crypt.MODE_CTR:
-		const pre = new ByteArray(szBlk);
-		const preImpl = pre._buf;
-
-		// copy all but last 4 bytes from 'iv' to 'pre'
-		for (let i = 0; i < szBlk4 - 1; i++)
-			preImpl[i] = _ivImpl[i];
-
-		// copy last 4 bytes to 'iv_tail'
-		const ivTail = _ivImpl[szBlk4 - 1];
-
-		// encrypt whole blocks
-		var pos = 0;
-		for (let i = 0; i < blocks; i++) {
-			// in effect, pre = iv XOR counter
-			preImpl[szBlk4 - 1] = i ^ ivTail;
-
-			_cipher.encrypt(pre, buf);
-			for (let j = 0; j < szBlk4; j++)
-				res.push(bufImpl[j] ^ plaintextImpl[pos + j]);
-
-			pos += szBlk4;
-		}
-
-		// encrypt partial block
-		if (left) {
-			preImpl[szBlk4 - 1] = blocks ^ ivTail;
-
-			_cipher.encrypt(pre, buf);
-			let i;
-			for (i = 0; i < left >> 2; i++)
-				res.push(bufImpl[i] ^ plaintextImpl[pos + i]);
-			if (left & 3) {
-				let x = bufImpl[i] ^ plaintextImpl[pos + i];
-				switch (left & 3) {
-				case 1: x &= 0xff000000; break;
-				case 2: x &= 0xffff0000; break;
-				case 3: x &= 0xffffff00;
-				}
-				res.push(x);
-			}
-		}
-
-		return new ByteArray(sz, res);
+		return _ctr(this._cipher, plaintext, true, sz);
 	default:
 		throw 'No such block mode';
 	}
@@ -109,10 +50,75 @@ Crypt.prototype.encrypt = function(plaintext, sz) {
 Crypt.prototype.decrypt = function(ciphertext, sz) {
 	switch (this._mode) {
 	case Crypt.MODE_CTR:
-		return this.encrypt(ciphertext, sz);
+		return _ctr(this._cipher, ciphertext, false, sz);
 	default:
 		throw 'No such block mode';
 	}
+}
+
+function _ctr(cipher, text, encrypt, sz) {
+	const szBlock = cipher.blockSize();
+	const szBlock4 = szBlock >> 2;
+
+	let iv;
+	let pos;
+	if (encrypt) {
+		iv = ByteArray.generateRandom(szBlock);
+		pos = 0;
+	} else {
+		iv = text;
+		pos = szBlock4;
+	}
+	const blocks = (sz / szBlock) ^ 0;
+	const left = sz % szBlock;
+
+	const res = [];
+	if (encrypt)
+		res.push(...iv._buf);
+
+	const pre = new ByteArray(szBlock);
+	const tmp = new ByteArray(szBlock);
+
+	// copy all but last 4 bytes from 'iv' to 'pre'
+	for (let i = 0; i < szBlock4 - 1; i++)
+		pre.set32(i, iv.get32(i));
+
+	// copy last 4 bytes to 'ivTail'
+	const ivTail = iv.get32(szBlock4 - 1);
+
+	// encrypt whole blocks
+	for (let i = 0; i < blocks; i++) {
+		// in effect, pre = iv XOR counter
+		pre.set32(szBlock4 - 1, i ^ ivTail);
+
+		cipher.encrypt(pre, tmp);
+		for (let j = 0; j < szBlock4; j++)
+			res.push(tmp.get32(j) ^ text.get32(pos + j));
+
+		pos += szBlock4;
+	}
+
+	// encrypt partial block
+	if (left) {
+		pre.set32(szBlock4 - 1, blocks ^ ivTail);
+
+		cipher.encrypt(pre, tmp);
+		let i;
+		const left4 = left >> 2;
+		for (i = 0; i < left4; i++)
+			res.push(tmp.get32(i) ^ text.get32(pos + i));
+		if (left & 3) {
+			let x = tmp.get32(i) ^ text._buf[pos + i];
+			switch (left & 3) {
+			case 1: x &= 0xff000000; break;
+			case 2: x &= 0xffff0000; break;
+			case 3: x &= 0xffffff00;
+			}
+			res.push(x);
+		}
+	}
+
+	return new ByteArray(sz + (encrypt ? iv.size() : 0), res);
 }
 
 return Crypt;
