@@ -23,8 +23,8 @@ function Whirlpool() {
 	Hash.call(this);
 	// hashing state
 	this._hash = new Uint32Array(16);
-	// number of hashed bits
-	this._bitCount = new Uint16Array(16);
+	// number of hashed bits (uint16[])
+	this._bitCount = new Array(16);
 	// data to hash
 	this._buf = new DataView(new ArrayBuffer(BLOCK));
 	this._pos = null;
@@ -160,7 +160,7 @@ Whirlpool.prototype.end = function() {
 	return res;
 }
 
-const C_0 = new Uint32Array([
+const C_0 = [
 	0x18186018,0xc07830d8,0x23238c23,0x05af4626,
 	0xc6c63fc6,0x7ef991b8,0xe8e887e8,0x136fcdfb,
 	0x87872687,0x4ca113cb,0xb8b8dab8,0xa9626d11,
@@ -289,9 +289,9 @@ const C_0 = new Uint32Array([
 	0x98985a98,0xb4c22d2c,0xa4a4aaa4,0x490e55ed,
 	0x2828a028,0x5d885075,0x5c5c6d5c,0xda31b886,
 	0xf8f8c7f8,0x933fed6b,0x86862286,0x44a411c2
-]);
+];
 
-const C_1 = new Uint32Array([
+const C_1 = [
 	0xd8181860,0x18c07830,0x2623238c,0x2305af46,
 	0xb8c6c63f,0xc67ef991,0xfbe8e887,0xe8136fcd,
 	0xcb878726,0x874ca113,0x11b8b8da,0xb8a9626d,
@@ -420,9 +420,9 @@ const C_1 = new Uint32Array([
 	0x2c98985a,0x98b4c22d,0xeda4a4aa,0xa4490e55,
 	0x752828a0,0x285d8850,0x865c5c6d,0x5cda31b8,
 	0x6bf8f8c7,0xf8933fed,0xc2868622,0x8644a411
-]);
+];
 
-const C_2 = new Uint32Array([
+const C_2 = [
 	0x30d81818,0x6018c078,0x46262323,0x8c2305af,
 	0x91b8c6c6,0x3fc67ef9,0xcdfbe8e8,0x87e8136f,
 	0x13cb8787,0x26874ca1,0x6d11b8b8,0xdab8a962,
@@ -551,9 +551,9 @@ const C_2 = new Uint32Array([
 	0x2d2c9898,0x5a98b4c2,0x55eda4a4,0xaaa4490e,
 	0x50752828,0xa0285d88,0xb8865c5c,0x6d5cda31,
 	0xed6bf8f8,0xc7f8933f,0x11c28686,0x228644a4
-]);
+];
 
-const C_3 = new Uint32Array([
+const C_3 = [
 	0x7830d818,0x186018c0,0xaf462623,0x238c2305,
 	0xf991b8c6,0xc63fc67e,0x6fcdfbe8,0xe887e813,
 	0xa113cb87,0x8726874c,0x626d11b8,0xb8dab8a9,
@@ -682,9 +682,9 @@ const C_3 = new Uint32Array([
 	0xc22d2c98,0x985a98b4,0x0e55eda4,0xa4aaa449,
 	0x88507528,0x28a0285d,0x31b8865c,0x5c6d5cda,
 	0x3fed6bf8,0xf8c7f893,0xa411c286,0x86228644
-]);
+];
 
-const C_4 = new Uint32Array([
+const C_4 = [
 	0xc07830d8,0x18186018,0x05af4626,0x23238c23,
 	0x7ef991b8,0xc6c63fc6,0x136fcdfb,0xe8e887e8,
 	0x4ca113cb,0x87872687,0xa9626d11,0xb8b8dab8,
@@ -813,9 +813,9 @@ const C_4 = new Uint32Array([
 	0xb4c22d2c,0x98985a98,0x490e55ed,0xa4a4aaa4,
 	0x5d885075,0x2828a028,0xda31b886,0x5c5c6d5c,
 	0x933fed6b,0xf8f8c7f8,0x44a411c2,0x86862286
-]);
+];
 
-const C_5 = new Uint32Array([
+const C_5 = [
 	0x18c07830,0xd8181860,0x2305af46,0x2623238c,
 	0xc67ef991,0xb8c6c63f,0xe8136fcd,0xfbe8e887,
 	0x874ca113,0xcb878726,0xb8a9626d,0x11b8b8da,
@@ -944,9 +944,9 @@ const C_5 = new Uint32Array([
 	0x98b4c22d,0x2c98985a,0xa4490e55,0xeda4a4aa,
 	0x285d8850,0x752828a0,0x5cda31b8,0x865c5c6d,
 	0xf8933fed,0x6bf8f8c7,0x8644a411,0xc2868622
-]);
+];
 
-const C_6 = new Uint32Array([
+const C_6 = [
 	0x6018c078,0x30d81818,0x8c2305af,0x46262323,
 	0x3fc67ef9,0x91b8c6c6,0x87e8136f,0xcdfbe8e8,
 	0x26874ca1,0x13cb8787,0xdab8a962,0x6d11b8b8,
@@ -1075,9 +1075,9 @@ const C_6 = new Uint32Array([
 	0x5a98b4c2,0x2d2c9898,0xaaa4490e,0x55eda4a4,
 	0xa0285d88,0x50752828,0x6d5cda31,0xb8865c5c,
 	0xc7f8933f,0xed6bf8f8,0x228644a4,0x11c28686
-]);
+];
 
-const C_7 = new Uint32Array([
+const C_7 = [
 	0x186018c0,0x7830d818,0x238c2305,0xaf462623,
 	0xc63fc67e,0xf991b8c6,0xe887e813,0x6fcdfbe8,
 	0x8726874c,0xa113cb87,0xb8dab8a9,0x626d11b8,
@@ -1206,15 +1206,15 @@ const C_7 = new Uint32Array([
 	0x985a98b4,0xc22d2c98,0xa4aaa449,0x0e55eda4,
 	0x28a0285d,0x88507528,0x5c6d5cda,0x31b8865c,
 	0xf8c7f893,0x3fed6bf8,0x86228644,0xa411c286
-]);
+];
 
-const RC = new Uint32Array([
+const RC = [
 	0x1823c6e8,0x87b8014f,0x36a6d2f5,0x796f9152,
 	0x60bc9b8e,0xa30c7b35,0x1de0d7c2,0x2e4bfe57,
 	0x157737e5,0x9ff04ada,0x58c9290a,0xb1a06b85,
 	0xbd5d10f4,0xcb3e0567,0xe427418b,0xa77d95d8,
 	0xfbee7c66,0xdd17479e,0xca2dbf07,0xad5a8333
-]);
+];
 
 // bytes in 'bitCount'
 const LENGTH_BYTES = 32;
@@ -1247,9 +1247,9 @@ function _computeL(L, A, idx) {
 
 // the core Whirlpool transform
 function _processBuf(buf, hash) {
-	const K = new Uint32Array(16);	// the round key
-	const state = new Uint32Array(16);	// the cipher state
-	const L = new Uint32Array(16);
+	const K = new Array(16);	// the round key
+	const state = new Array(16);	// the cipher state
+	const L = new Array(16);
 
 	// compute and apply K_0 to the cipher state
 	for (let i = 0; i < 16; i++) {

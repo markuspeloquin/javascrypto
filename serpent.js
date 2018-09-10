@@ -67,7 +67,7 @@ function Serpent(key) {
 		s[i] = [0, 0, 0, 0];
 
 	// calculate round k_{4i..4i+3}=subkey[i] from w_{4i..4i+3}
-	const sl = [0,0,0,0]; // slice
+	const sl = new Array(4); // slice
 	for (let i = 8, j = 0; j < 33; i += 4, j++) {
 		sl[0] = w[i];
 		sl[1] = w[i+1];
@@ -96,12 +96,12 @@ Serpent.KEYSTEP = KEYSTEP;
 Serpent.prototype.encrypt = function(plaintext, ciphertext) {
 	const _subkeys = this._subkeys;
 	const x = [
-		swap32(plaintext.get32(0)),
-		swap32(plaintext.get32(1)),
-		swap32(plaintext.get32(2)),
-		swap32(plaintext.get32(3)),
+		plaintext.get32(0, true),
+		plaintext.get32(1, true),
+		plaintext.get32(2, true),
+		plaintext.get32(3, true),
 	];
-	const y = [0, 0, 0, 0];
+	const y = new Array(4);
 	for (let i = 0; i < 31; i++) {
 		_keying(x, _subkeys[i]);
 		switch (i & 7) {
@@ -119,21 +119,21 @@ Serpent.prototype.encrypt = function(plaintext, ciphertext) {
 	_keying(x, _subkeys[31]);
 	_sbox7(x, y);
 	_keying(y, _subkeys[32]);
-	ciphertext.set32(0, swap32(y[0]));
-	ciphertext.set32(1, swap32(y[1]));
-	ciphertext.set32(2, swap32(y[2]));
-	ciphertext.set32(3, swap32(y[3]));
+	ciphertext.set32(0, y[0], true);
+	ciphertext.set32(1, y[1], true);
+	ciphertext.set32(2, y[2], true);
+	ciphertext.set32(3, y[3], true);
 }
 
 Serpent.prototype.decrypt = function(plaintext, ciphertext) {
 	const _subkeys = this._subkeys;
 	const x = [
-		swap32(ciphertext.get32(0)),
-		swap32(ciphertext.get32(1)),
-		swap32(ciphertext.get32(2)),
-		swap32(ciphertext.get32(3)),
+		ciphertext.get32(0, true),
+		ciphertext.get32(1, true),
+		ciphertext.get32(2, true),
+		ciphertext.get32(3, true),
 	];
-	const y = [0, 0, 0, 0];
+	const y = new Array(4);
 	_keying(x, _subkeys[32]);
 	_sbox7Inv(x, y);
 	_keying(y, _subkeys[31]);
@@ -151,10 +151,10 @@ Serpent.prototype.decrypt = function(plaintext, ciphertext) {
 		}
 		_keying(y, _subkeys[i]);
 	}
-	plaintext.set32(0, swap32(y[0]));
-	plaintext.set32(1, swap32(y[1]));
-	plaintext.set32(2, swap32(y[2]));
-	plaintext.set32(3, swap32(y[3]));
+	plaintext.set32(0, y[0], true);
+	plaintext.set32(1, y[1], true);
+	plaintext.set32(2, y[2], true);
+	plaintext.set32(3, y[3], true);
 }
 
 var PHI = 0x9e3779b9;
