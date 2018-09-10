@@ -488,9 +488,9 @@ ByteArray.generateRandom = size => {
 	if (size & 1)
 		tmp = new Uint8Array(size);
 	else if (size & 3)
-		tmp = new Uint16Array(size);
+		tmp = new Uint16Array(size >>> 1);
 	else
-		tmp = new Uint32Array(size);
+		tmp = new Uint32Array(size >>> 2);
 	crypto.getRandomValues(tmp);
 	return new ByteArray(tmp.buffer);
 }
