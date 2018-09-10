@@ -42,20 +42,19 @@ function Serpent(key) {
 
 	// w starts at offset 8
 	const w = new Array(8 + 4 * 33);
-	const keyBuf = key._buf;
-	const sz = keyBuf.length << 2;
+	const sz = key.size();
 
 	if (sz != 16 && sz != 24 && sz != 32)
 		throw 'Serpent: Bad key size';
 
-	// internal representation is little-endian
+	// copy with endian-swap
 	for (let i = 0; i < sz >>> 2; i++)
-		w[i] = swap32(keyBuf[i]);
+		w[i] = key.get32(i, true);
 	if (sz < 32) {
 		// fill the remainder with the binary pattern b10000..., but
 		// reversed
-		w[keyBuf.length] = 1;
-		for (let i = keyBuf.length + 1; i < 8; i++)
+		w[sz >>> 2] = 1;
+		for (let i = sz >>> 2 + 1; i < 8; i++)
 			w[i] = 0;
 	}
 

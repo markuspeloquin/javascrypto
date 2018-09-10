@@ -62,19 +62,18 @@ function _ctr(cipher, text, encrypt, sz) {
 
 	let iv;
 	let pos;
+	const res = [];
 	if (encrypt) {
 		iv = ByteArray.generateRandom(szBlock);
 		pos = 0;
+		for (let i = 0; i != szBlock; i += 4)
+			res.push(iv.get32(i >>> 2));
 	} else {
 		iv = text;
 		pos = szBlock4;
 	}
 	const blocks = (sz / szBlock) ^ 0;
 	const left = sz % szBlock;
-
-	const res = [];
-	if (encrypt)
-		res.push(...iv._buf);
 
 	const pre = new ByteArray(szBlock);
 	const tmp = new ByteArray(szBlock);
@@ -108,17 +107,22 @@ function _ctr(cipher, text, encrypt, sz) {
 		for (i = 0; i < left4; i++)
 			res.push(tmp.get32(i) ^ text.get32(pos + i));
 		if (left & 3) {
-			let x = tmp.get32(i) ^ text._buf[pos + i];
-			switch (left & 3) {
-			case 1: x &= 0xff000000; break;
-			case 2: x &= 0xffff0000; break;
-			case 3: x &= 0xffffff00;
+			const pos8 = (pos + i) << 2;
+			let x = tmp.get(pos8) << 24;
+			let mask = 0xff000000;
+			if (left & 3 > 1) {
+				x |= tmp.get(pos8 + 1) << 16;
+				mask = 0xffff0000;
 			}
-			res.push(x);
+			if (left & 3 > 2) {
+				x |= tmp.get(pos8 + 2) << 8;
+				mask = 0xffffff00;
+			}
+			res.push((tmp.get32(i) ^ x) & mask);
 		}
 	}
 
-	return new ByteArray(sz + (encrypt ? iv.size() : 0), res);
+	return new ByteArray(res, sz + (encrypt ? iv.size() : 0));
 }
 
 return Crypt;

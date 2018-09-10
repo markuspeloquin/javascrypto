@@ -16,18 +16,18 @@
 
 const Tiger = (() => {
 
-const BLOCK = 64;		/**< Block size in bytes */
+const BLOCK = 64;	/**< Block size in bytes */
 const DIGEST = 24;	/**< Digest size in bytes */
 const NUM_PASSES = 3;
 
 /** Tiger hash function
  * \param version (Optional) version (1 [default] or 2)
  */
-function Tiger(/*optional*/version) {
+function Tiger(version=1) {
 	Hash.call(this);
 	// default to 1
 	this._buf = new ByteArray(BLOCK);
-	this._version = (arguments.length && version == 2) ? 2 : 1;
+	this._version = version == 2 ? 2 : 1
 }
 
 Tiger.BLOCK = BLOCK;
@@ -150,23 +150,17 @@ Tiger.prototype.end = function() {
 	}
 
 	// clear all but last 64 bits
-	while (i < 56) {
-		_buf._buf[i >>> 2] = 0;
-		i += 4;
-	}
+	while (i < 56) _buf.set(i++, 0);
 
-	_buf.swap64(0, BLOCK >>> 3);
+	_buf.swap64(0, (BLOCK >>> 3) - 1);
 	_buf.set64(i >>> 3, this._length.lshift(3));
 	_compress(_buf, this._res);
 
 	let [r0, r1, r2] = this._res;
-	r0 = r0.swap();
-	r1 = r1.swap();
-	r2 = r2.swap();
 	const res = new ByteArray(DIGEST);
-	res.set64(0, r0);
-	res.set64(1, r1);
-	res.set64(2, r2);
+	res.set64(0, r0, true);
+	res.set64(1, r1, true);
+	res.set64(2, r2, true);
 	return res;
 }
 
@@ -195,15 +189,15 @@ function _round(a, b, c, x, m) {
 	c._n = c0._n;
 }
 
-function _compress(buffer, state) {
-	let x0 = buffer.get64(0);
-	let x1 = buffer.get64(1);
-	let x2 = buffer.get64(2);
-	let x3 = buffer.get64(3);
-	let x4 = buffer.get64(4);
-	let x5 = buffer.get64(5);
-	let x6 = buffer.get64(6);
-	let x7 = buffer.get64(7);
+function _compress(buf, state) {
+	let x0 = buf.get64(0);
+	let x1 = buf.get64(1);
+	let x2 = buf.get64(2);
+	let x3 = buf.get64(3);
+	let x4 = buf.get64(4);
+	let x5 = buf.get64(5);
+	let x6 = buf.get64(6);
+	let x7 = buf.get64(7);
 	const [aa, bb, cc] = state;
 	let a = new Long(aa);
 	let b = new Long(bb);

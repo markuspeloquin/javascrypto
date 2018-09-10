@@ -21,12 +21,12 @@ const DIGEST = 64;
 
 function Whirlpool() {
 	Hash.call(this);
-	// hashing state (uint32_t[])
-	this._hash = new Array(16);
-	// number of hashed bits (uint16_t[])
-	this._bitCount = new Array(16);
-	// data to hash (uint8_t[])
-	this._buf = new ByteArray(64);
+	// hashing state
+	this._hash = new Uint32Array(16);
+	// number of hashed bits
+	this._bitCount = new Uint16Array(16);
+	// data to hash
+	this._buf = new DataView(new ArrayBuffer(BLOCK));
 	this._pos = null;
 }
 Whirlpool.prototype = Object.create(Hash.prototype);
@@ -47,28 +47,29 @@ Whirlpool.prototype.init = function() {
 }
 
 /** Add data to the computation.
- * \param buf	The data to be appended (big endian).
- * \param sz	Size of data in bytes.
+ * \param buf	The data to be appended as a ByteArray
+ * \param sz	Size of data in bytes
  */
 Whirlpool.prototype.update = function(buf, sz) {
 	// this function maintains the invariant: pos < WBLOCKBYTES
-	let _buf = this._buf;
+	const _buf = this._buf;
+	const _hash = this._hash;
 	let _pos = this._pos;
 
-	_incrementCount(this, sz);
+	_incrementCount(this._bitCount, sz);
 
 	if (_pos + sz < BLOCK) {
 		// buffer will not fill
 		if ((_pos | sz) & 3) {
 			for (let i = 0; i < sz; i++)
-				_buf.set(_pos++, buf.get(i));
+				_buf.setUint8(_pos++, buf.get(i));
 		} else {
 			// both are aligned
 			const sz32 = sz >>> 2;
-			let _pos32 = _pos >>> 2;
-			for (let i = 0; i < sz32; i++)
-				_buf.set32(_pos32++, buf.get32(i));
-			_pos = _pos32 << 2;
+			for (let i = 0; i < sz32; i++) {
+				_buf.setUint32(_pos, buf.get32(i), false);
+				_pos += 4;
+			}
 		}
 		this._pos = _pos;
 		return;
@@ -78,16 +79,16 @@ Whirlpool.prototype.update = function(buf, sz) {
 	const bytes = BLOCK - _pos;
 	if ((_pos | bytes) & 3) {
 		for (let i = 0; i < bytes; i++)
-			_buf.set(_pos++, buf.get(i));
+			_buf.setUint8(_pos++, buf.get(i));
 	} else {
 		// both are aligned
 		const bytes32 = bytes >>> 2;
-		let _pos32 = _pos >>> 2;
-		for (let i = 0; i < bytes32; i++)
-			_buf.set32(_pos32++, buf.get32(i));
-		_pos = _pos32 << 2;
+		for (let i = 0; i < bytes32; i++) {
+			_buf.setUint32(_pos, buf.get32(i), false);
+			_pos += 4;
+		}
 	}
-	_processBuf(this);
+	_processBuf(_buf, _hash);
 	let srcpos = bytes;
 	sz -= bytes;
 
@@ -95,29 +96,27 @@ Whirlpool.prototype.update = function(buf, sz) {
 	while (sz >= BLOCK) {
 		if (srcpos & 3) {
 			for (let i = 0; i < BLOCK; i++)
-				_buf.set(i, buf.get(srcpos++));
+				_buf.setUint8(i, buf.get(srcpos++));
 		} else {
 			// both are aligned
-			const block32 = BLOCK >>> 2;
 			let srcpos32 = srcpos >>> 2;
-			for (let i = 0; i < block32; i++)
-				_buf.set32(i, buf.get32(srcpos32++));
+			for (let i = 0; i < BLOCK; i += 4)
+				_buf.setUint32(i, buf.get32(srcpos32++), false);
 			srcpos = srcpos32 << 2;
 		}
-		_processBuf(this);
+		_processBuf(_buf, _hash);
 		sz -= BLOCK;
 	}
 
 	// copy next partial block for later
 	if ((srcpos | sz) & 3) {
 		for (let i = 0; i < sz; i++)
-			_buf.set(i, buf.get(srcpos++));
+			_buf.setUint8(i, buf.get(srcpos++));
 	} else {
 		// both are aligned
-		const sz32 = sz >>> 2;
 		let srcpos32 = srcpos >>> 2;
-		for (let i = 0; i < sz32; i++)
-			_buf.set32(i, buf.get32(srcpos32++));
+		for (let i = 0; i < sz; i += 4)
+			_buf.setUint32(i, buf.get32(srcpos32++), false);
 		srcpos = srcpos32 << 2;
 	}
 	this._pos = sz;
@@ -129,10 +128,11 @@ Whirlpool.prototype.update = function(buf, sz) {
 Whirlpool.prototype.end = function() {
 	// this function uses the invariant: pos < WBLOCKBYTES
 	const _buf = this._buf;
+	const _hash = this._hash;
 	let _pos = this._pos;
 
 	// append the bit pattern 100000...
-	_buf.set(_pos++, 0x80);
+	_buf.setUint8(_pos++, 0x80);
 
 	const posFooter = BLOCK - LENGTH_BYTES;
 
@@ -140,43 +140,27 @@ Whirlpool.prototype.end = function() {
 		// no room to fit the bit count; that will go in the next
 		// block; fill remainder with zeros
 		while (_pos < BLOCK)
-			_buf.set(_pos++, 0);
-		_processBuf(this);
+			_buf.setUint8(_pos++, 0);
+		_processBuf(_buf, _hash);
 		_pos = 0;
 	}
 	// pad middle with zeros
 	while (_pos < posFooter)
-		_buf.set(_pos++, 0);
+		_buf.setUint8(_pos++, 0);
 
-	this._pos = _pos;
-	_appendCount(this);
+	_appendCount(this._bitCount, _buf, _pos);
+	this._pos = _pos = _buf.byteLength;
 
 	// process final data block
-	_processBuf(this);
+	_processBuf(_buf, _hash);
 
 	// return digest
-	const _hash = this._hash;
-	const res = new ByteArray(DIGEST);
-	res.set32(0,  _hash[0]);
-	res.set32(1,  _hash[1]);
-	res.set32(2,  _hash[2]);
-	res.set32(3,  _hash[3]);
-	res.set32(4,  _hash[4]);
-	res.set32(5,  _hash[5]);
-	res.set32(6,  _hash[6]);
-	res.set32(7,  _hash[7]);
-	res.set32(8,  _hash[8]);
-	res.set32(9,  _hash[9]);
-	res.set32(10, _hash[10]);
-	res.set32(11, _hash[11]);
-	res.set32(12, _hash[12]);
-	res.set32(13, _hash[13]);
-	res.set32(14, _hash[14]);
-	res.set32(15, _hash[15]);
+	const res = new ByteArray(_hash.buffer);
+	res.swap32();
 	return res;
 }
 
-const C_0 = [
+const C_0 = new Uint32Array([
 	0x18186018,0xc07830d8,0x23238c23,0x05af4626,
 	0xc6c63fc6,0x7ef991b8,0xe8e887e8,0x136fcdfb,
 	0x87872687,0x4ca113cb,0xb8b8dab8,0xa9626d11,
@@ -305,9 +289,9 @@ const C_0 = [
 	0x98985a98,0xb4c22d2c,0xa4a4aaa4,0x490e55ed,
 	0x2828a028,0x5d885075,0x5c5c6d5c,0xda31b886,
 	0xf8f8c7f8,0x933fed6b,0x86862286,0x44a411c2
-];
+]);
 
-const C_1 = [
+const C_1 = new Uint32Array([
 	0xd8181860,0x18c07830,0x2623238c,0x2305af46,
 	0xb8c6c63f,0xc67ef991,0xfbe8e887,0xe8136fcd,
 	0xcb878726,0x874ca113,0x11b8b8da,0xb8a9626d,
@@ -436,9 +420,9 @@ const C_1 = [
 	0x2c98985a,0x98b4c22d,0xeda4a4aa,0xa4490e55,
 	0x752828a0,0x285d8850,0x865c5c6d,0x5cda31b8,
 	0x6bf8f8c7,0xf8933fed,0xc2868622,0x8644a411
-];
+]);
 
-const C_2 = [
+const C_2 = new Uint32Array([
 	0x30d81818,0x6018c078,0x46262323,0x8c2305af,
 	0x91b8c6c6,0x3fc67ef9,0xcdfbe8e8,0x87e8136f,
 	0x13cb8787,0x26874ca1,0x6d11b8b8,0xdab8a962,
@@ -567,9 +551,9 @@ const C_2 = [
 	0x2d2c9898,0x5a98b4c2,0x55eda4a4,0xaaa4490e,
 	0x50752828,0xa0285d88,0xb8865c5c,0x6d5cda31,
 	0xed6bf8f8,0xc7f8933f,0x11c28686,0x228644a4
-];
+]);
 
-const C_3 = [
+const C_3 = new Uint32Array([
 	0x7830d818,0x186018c0,0xaf462623,0x238c2305,
 	0xf991b8c6,0xc63fc67e,0x6fcdfbe8,0xe887e813,
 	0xa113cb87,0x8726874c,0x626d11b8,0xb8dab8a9,
@@ -698,9 +682,9 @@ const C_3 = [
 	0xc22d2c98,0x985a98b4,0x0e55eda4,0xa4aaa449,
 	0x88507528,0x28a0285d,0x31b8865c,0x5c6d5cda,
 	0x3fed6bf8,0xf8c7f893,0xa411c286,0x86228644
-];
+]);
 
-const C_4 = [
+const C_4 = new Uint32Array([
 	0xc07830d8,0x18186018,0x05af4626,0x23238c23,
 	0x7ef991b8,0xc6c63fc6,0x136fcdfb,0xe8e887e8,
 	0x4ca113cb,0x87872687,0xa9626d11,0xb8b8dab8,
@@ -829,9 +813,9 @@ const C_4 = [
 	0xb4c22d2c,0x98985a98,0x490e55ed,0xa4a4aaa4,
 	0x5d885075,0x2828a028,0xda31b886,0x5c5c6d5c,
 	0x933fed6b,0xf8f8c7f8,0x44a411c2,0x86862286
-];
+]);
 
-const C_5 = [
+const C_5 = new Uint32Array([
 	0x18c07830,0xd8181860,0x2305af46,0x2623238c,
 	0xc67ef991,0xb8c6c63f,0xe8136fcd,0xfbe8e887,
 	0x874ca113,0xcb878726,0xb8a9626d,0x11b8b8da,
@@ -960,9 +944,9 @@ const C_5 = [
 	0x98b4c22d,0x2c98985a,0xa4490e55,0xeda4a4aa,
 	0x285d8850,0x752828a0,0x5cda31b8,0x865c5c6d,
 	0xf8933fed,0x6bf8f8c7,0x8644a411,0xc2868622
-];
+]);
 
-const C_6 = [
+const C_6 = new Uint32Array([
 	0x6018c078,0x30d81818,0x8c2305af,0x46262323,
 	0x3fc67ef9,0x91b8c6c6,0x87e8136f,0xcdfbe8e8,
 	0x26874ca1,0x13cb8787,0xdab8a962,0x6d11b8b8,
@@ -1091,9 +1075,9 @@ const C_6 = [
 	0x5a98b4c2,0x2d2c9898,0xaaa4490e,0x55eda4a4,
 	0xa0285d88,0x50752828,0x6d5cda31,0xb8865c5c,
 	0xc7f8933f,0xed6bf8f8,0x228644a4,0x11c28686
-];
+]);
 
-const C_7 = [
+const C_7 = new Uint32Array([
 	0x186018c0,0x7830d818,0x238c2305,0xaf462623,
 	0xc63fc67e,0xf991b8c6,0xe887e813,0x6fcdfbe8,
 	0x8726874c,0xa113cb87,0xb8dab8a9,0x626d11b8,
@@ -1222,15 +1206,15 @@ const C_7 = [
 	0x985a98b4,0xc22d2c98,0xa4aaa449,0x0e55eda4,
 	0x28a0285d,0x88507528,0x5c6d5cda,0x31b8865c,
 	0xf8c7f893,0x3fed6bf8,0x86228644,0xa411c286
-];
+]);
 
-const RC = [
+const RC = new Uint32Array([
 	0x1823c6e8,0x87b8014f,0x36a6d2f5,0x796f9152,
 	0x60bc9b8e,0xa30c7b35,0x1de0d7c2,0x2e4bfe57,
 	0x157737e5,0x9ff04ada,0x58c9290a,0xb1a06b85,
 	0xbd5d10f4,0xcb3e0567,0xe427418b,0xa77d95d8,
 	0xfbee7c66,0xdd17479e,0xca2dbf07,0xad5a8333
-];
+]);
 
 // bytes in 'bitCount'
 const LENGTH_BYTES = 32;
@@ -1262,139 +1246,131 @@ function _computeL(L, A, idx) {
 }
 
 // the core Whirlpool transform
-function _processBuf(ctx) {
-	const K = new Array(16);	// the round key
-	const state = new Array(16);	// the cipher state
-	const L = new Array(16);
-	const buf = ctx._buf._buf;
-	const hash = ctx._hash;
+function _processBuf(buf, hash) {
+	const K = new Uint32Array(16);	// the round key
+	const state = new Uint32Array(16);	// the cipher state
+	const L = new Uint32Array(16);
 
 	// compute and apply K_0 to the cipher state
 	for (let i = 0; i < 16; i++) {
 		K[i] = hash[i];
-		state[i] = buf[i] ^ K[i];
+		state[i] = buf.getUint32(i << 2, false) ^ K[i];
 	}
 
 	// iterate over all rounds
 	for (let i = 0, j = 0; i < ROUNDS; i++, j+=2) {
 		// compute K_i from K_{i-1}
-		_computeL(L,K,0);
+		_computeL(L, K, 0);
 		L[0] ^= RC[j];
-		L[1] ^= RC[j+1];
-		_computeL(L,K,1);
-		_computeL(L,K,2);
-		_computeL(L,K,3);
-		_computeL(L,K,4);
-		_computeL(L,K,5);
-		_computeL(L,K,6);
-		_computeL(L,K,7);
+		L[1] ^= RC[j + 1];
+		_computeL(L, K, 1);
+		_computeL(L, K, 2);
+		_computeL(L, K, 3);
+		_computeL(L, K, 4);
+		_computeL(L, K, 5);
+		_computeL(L, K, 6);
+		_computeL(L, K, 7);
 		for (let k = 0; k < 16; k++) K[k] = L[k];
 		// apply the i-th round transformation
-		_computeL(L,state,0);
-		_computeL(L,state,1);
-		_computeL(L,state,2);
-		_computeL(L,state,3);
-		_computeL(L,state,4);
-		_computeL(L,state,5);
-		_computeL(L,state,6);
-		_computeL(L,state,7);
+		_computeL(L, state, 0);
+		_computeL(L, state, 1);
+		_computeL(L, state, 2);
+		_computeL(L, state, 3);
+		_computeL(L, state, 4);
+		_computeL(L, state, 5);
+		_computeL(L, state, 6);
+		_computeL(L, state, 7);
 		for (let k = 0; k < 16; k++) state[k] = L[k] ^ K[k];
 	}
 	// apply the Miyaguchi-Preneel compression function
 	for (let i = 0; i < 16; i++)
-		hash[i] ^= state[i] ^ buf[i];
+		hash[i] ^= state[i] ^ buf.getUint32(i << 2, false);
 }
 
-function _incrementCount(ctx, sz) {
-	const _bitCount = ctx._bitCount;
-
-	const c0 = (sz << 3) & 0xffff;
-	const c1 = (sz >> 13) & 0xffff;
-	const c2 = sz >>> 29;
+function _incrementCount(bitCount, sz) {
+	const c0 = (sz << 3) & 0xffff;  //  nbits        & 0xffff
+	const c1 = (sz >> 13) & 0xffff; // (nbits >> 16) & 0xffff
+	const c2 = sz >>> 29;           // (nbits >> 32) & 0xffff
 
 	// 0: least significant
 
 	let sum;
 	let carry;
 
-	sum = _bitCount[0] += c0;         carry = sum >>> 16;
+	sum = bitCount[0] + c0;         carry = sum >>> 16;
+	bitCount[0] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[0] = sum & 0xffff;
 
-	sum = _bitCount[1] += c1 + carry; carry = sum >>> 16;
+	sum = bitCount[1] + c1 + carry; carry = sum >>> 16;
+	bitCount[1] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[1] = sum & 0xffff;
 
-	sum = _bitCount[2] += c2 + carry; carry = sum >>> 16;
+	sum = bitCount[2] + c2 + carry; carry = sum >>> 16;
+	bitCount[2] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[2] = sum & 0xffff;
 
-	sum = _bitCount[3] +=      carry; carry = sum >>> 16;
+	sum = bitCount[3] +      carry; carry = sum >>> 16;
+	bitCount[3] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[3] = sum & 0xffff;
 
-	sum = _bitCount[4] +=      carry; carry = sum >>> 16;
+	sum = bitCount[4] +      carry; carry = sum >>> 16;
+	bitCount[4] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[4] = sum & 0xffff;
 
-	sum = _bitCount[5] +=      carry; carry = sum >>> 16;
+	sum = bitCount[5] +      carry; carry = sum >>> 16;
+	bitCount[5] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[5] = sum & 0xffff;
 
-	sum = _bitCount[6] +=      carry; carry = sum >>> 16;
+	sum = bitCount[6] +      carry; carry = sum >>> 16;
+	bitCount[6] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[6] = sum & 0xffff;
 
-	sum = _bitCount[7] +=      carry; carry = sum >>> 16;
+	sum = bitCount[7] +      carry; carry = sum >>> 16;
+	bitCount[7] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[7] = sum & 0xffff;
 
-	sum = _bitCount[8] +=      carry; carry = sum >>> 16;
+	sum = bitCount[8] +      carry; carry = sum >>> 16;
+	bitCount[8] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[8] = sum & 0xffff;
 
-	sum = _bitCount[9] +=      carry; carry = sum >>> 16;
+	sum = bitCount[9] +      carry; carry = sum >>> 16;
+	bitCount[9] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[9] = sum & 0xffff;
 
-	sum = _bitCount[10] +=     carry; carry = sum >>> 16;
+	sum = bitCount[10] +     carry; carry = sum >>> 16;
+	bitCount[10] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[10] = sum & 0xffff;
 
-	sum = _bitCount[11] +=     carry; carry = sum >>> 16;
+	sum = bitCount[11] +     carry; carry = sum >>> 16;
+	bitCount[11] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[11] = sum & 0xffff;
 
-	sum = _bitCount[12] +=     carry; carry = sum >>> 16;
+	sum = bitCount[12] +     carry; carry = sum >>> 16;
+	bitCount[12] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[12] = sum & 0xffff;
 
-	sum = _bitCount[13] +=     carry; carry = sum >>> 16;
+	sum = bitCount[13] +     carry; carry = sum >>> 16;
+	bitCount[13] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[13] = sum & 0xffff;
 
-	sum = _bitCount[14] +=     carry; carry = sum >>> 16;
+	sum = bitCount[14] +     carry; carry = sum >>> 16;
+	bitCount[14] = sum & 0xffff;
 	if (!carry) return;
-	_bitCount[14] = sum & 0xffff;
 
-	sum = _bitCount[15] +=     carry;
-	_bitCount[15] = sum & 0xffff;
+	sum = bitCount[15] +     carry;
+	bitCount[15] = sum & 0xffff;
 }
 
 // append bit length of hashed data
-function _appendCount(ctx) {
-	const _bitCount = ctx._bitCount;
-	const _buf = ctx._buf;
-	let pos = ctx._pos >> 2;
-	_buf.set32(pos++, (_bitCount[15] << 16) | _bitCount[14]);
-	_buf.set32(pos++, (_bitCount[13] << 16) | _bitCount[12]);
-	_buf.set32(pos++, (_bitCount[11] << 16) | _bitCount[10]);
-	_buf.set32(pos++, (_bitCount[9]  << 16) | _bitCount[8]);
-	_buf.set32(pos++, (_bitCount[7]  << 16) | _bitCount[6]);
-	_buf.set32(pos++, (_bitCount[5]  << 16) | _bitCount[4]);
-	_buf.set32(pos++, (_bitCount[3]  << 16) | _bitCount[2]);
-	_buf.set32(pos++, (_bitCount[1]  << 16) | _bitCount[0]);
-	ctx._pos = pos << 2;
+function _appendCount(bitCount, buf, pos) {
+	buf.setUint32(pos, (bitCount[15] << 16) | bitCount[14], false); pos += 4;
+	buf.setUint32(pos, (bitCount[13] << 16) | bitCount[12], false); pos += 4;
+	buf.setUint32(pos, (bitCount[11] << 16) | bitCount[10], false); pos += 4;
+	buf.setUint32(pos, (bitCount[9]  << 16) | bitCount[8],  false); pos += 4;
+	buf.setUint32(pos, (bitCount[7]  << 16) | bitCount[6],  false); pos += 4;
+	buf.setUint32(pos, (bitCount[5]  << 16) | bitCount[4],  false); pos += 4;
+	buf.setUint32(pos, (bitCount[3]  << 16) | bitCount[2],  false); pos += 4;
+	buf.setUint32(pos, (bitCount[1]  << 16) | bitCount[0],  false); pos += 4;
 }
 
 return Whirlpool;

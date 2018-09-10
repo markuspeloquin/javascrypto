@@ -29,13 +29,12 @@ function pbkdf2(hmacfn, passwd, salt, iter, szkey) {
 	const blocks = (szkey / szDigest) ^ 0;
 	const partial = szkey % szDigest;
 	const res = new ByteArray(szkey);
-	const indexbuf = new ByteArray(4, [1]);
-	const indexbufImpl = indexbuf._buf;
+	const indexbuf = new ByteArray([1], 4); // [00 00 00 01]
 
 	let pos = 0;
 	for (let i = 0; i < blocks; i++) {
 		pbkdf2_f(hmacfn, passwd, salt, iter, indexbuf, res, pos);
-		indexbufImpl[0]++;
+		indexbuf.set32(0, i + 2);
 		pos += szDigest;
 	}
 

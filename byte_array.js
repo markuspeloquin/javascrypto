@@ -16,29 +16,46 @@
 
 const ByteArray = (() => {
 
+function _splitBytes(val) {
+	const b3 = val & 0xff; val >>>= 8;
+	const b2 = val & 0xff; val >>>= 8;
+	const b1 = val & 0xff; val >>>= 8;
+	const b0 = val;
+	return [b0, b1, b2, b3];
+}
+
 // new ByteArray(size)
-// new ByteArray(size, Array)
+// new ByteArray(int[], size)
 function ByteArray(...args) {
 	if (args.length == 1) {
-		const [size] = args;
-		if (typeof size === 'number') {
-			// len = ceil(arg0 / 4)
-			this._buf = new Array((size + 3) >> 2);
-			this._sz = size;
-			this._buf.fill(0);
-		} else
+		const [arg0] = args;
+		if (typeof arg0 === 'number')
+			this._buf = new ArrayBuffer(arg0); // arg0 is size
+		else if (arg0.constructor == ArrayBuffer)
+			this._buf = arg0.slice(); // copy arg0 buffer
+		else
 			throw new TypeError;
 	} else if (args.length == 2) {
-		const [size, buf] = args;
+		const [buf, size] = args;
 		if (typeof size === 'number' && buf.constructor === Array) {
 			if (buf.length != (size + 3) >> 2)
-				throw new RuntimeError('invalid parameter');
-			this._buf = [...buf];
-			this._sz = size;
+				throw new RuntimeError('invalid size');
+
+			const newbuf = this._buf = new ArrayBuffer(size);
+			const view = new DataView(newbuf);
+			const words = size >> 2;
+			for (let i = 0, j = 0; j != words; i += 4, j++)
+				view.setUint32(i, buf[j], false);
+			if (words != buf.length) {
+				const b = _splitBytes(buf[buf.length - 1]);
+				for (let i = words << 2, j = 0; i != size; i++, j++)
+					view.setUint8(i, b[j]);
+			}
 		} else
 			throw new TypeError;
 	} else
 		throw new RuntimeError('invalid parameters');
+	this._view = new DataView(this._buf);
 }
 ByteArray.prototype = {};
 ByteArray.prototype.constructor = ByteArray;
@@ -71,7 +88,7 @@ const B64_ALPHABET_REV = (() => {
 })();
 
 ByteArray.prototype.size = function() {
-	return this._sz;
+	return this._buf.byteLength;
 }
 
 /** Convert a buffer to a base64 string.
@@ -84,62 +101,44 @@ ByteArray.prototype.size = function() {
  * \param off	[optional] start offset
  * \return	base64 string
  */
-ByteArray.prototype.toBase64 = function(start, end) {
-	const _buf = this._buf;
-	const _sz = this._sz;
+ByteArray.prototype.toBase64 = function(start=0, end=-1) {
+	const _view = this._view;
 
-	switch (arguments.length) {
-	case 0:
-		start = 0;
-		// fall
-	case 1:
-		end = _sz;
-	}
+	if (end == -1)
+		end = _view.byteLength;
+	else if (end < start)
+		throw new RuntimeError('end < start');
+
+	const [S_XXX, S_0XX, S_01X] = [0, 1, 2];
 
 	let accum = 0;
-	let accumSz = 0;
-
+	let state = S_XXX;
 	let res = '';
-	while (start < end) {
-		let x = _buf[start >>> 2];
-		switch (start & 3) {
-		case 0: x >>>= 24;            break;
-		case 1: x  >>= 16; x &= 0xff; break;
-		case 2: x  >>=  8; x &= 0xff; break;
-		default:           x &= 0xff;
+	for (; start != end; start++) {
+		let x = _view.getUint8(start);
+		switch (state) {
+		case S_XXX:
+			res += B64_ALPHABET[x >>> 2]; // aaaaaa
+			accum = (x & 0x3) << 4; // aa0000
+			state = S_0XX;
+			break;
+		case S_0XX:
+			res += B64_ALPHABET[accum | (x >>> 4)]; // aabbbb
+			accum = (x & 0xf) << 2; // bbbb00
+			state = S_01X;
+			break;
+		case S_01X:
+			res += B64_ALPHABET[accum | (x >>> 6)]; // bbbbcc
+			res += B64_ALPHABET[x & 0x3f]; // cccccc
+			state = S_XXX;
 		}
-
-		switch (accumSz) {
-		case 0: x <<= 16; break;
-		case 1: x <<= 8;
-		}
-		accum |= x;
-		accumSz++;
-
-		if (accumSz == 3) {
-			let n0 = accum;
-			const n3 = n0 & 0x3f; n0 >>= 6;
-			const n2 = n0 & 0x3f; n0 >>= 6;
-			const n1 = n0 & 0x3f; n0 >>= 6;
-			res += B64_ALPHABET[n0] +
-			    B64_ALPHABET[n1] +
-			    B64_ALPHABET[n2] +
-			    B64_ALPHABET[n3];
-			accumSz = 0;
-			accum = 0;
-		}
-		start++;
 	}
-	if (accumSz) {
-		// 00aa0000 or 00aabb00
-		let n0 = accum >> 6;
-		const n2 = n0 & 0x3f; n0 >>= 6;
-		const n1 = n0 & 0x3f; n0 >>= 6;
-		res += B64_ALPHABET[n0] + B64_ALPHABET[n1];
-		if (accumSz == 1)
-			res += '==';
-		else
-			res += B64_ALPHABET[n2] + '=';
+	switch (state) {
+	case S_0XX:
+		res += '==';
+		break;
+	case S_01X:
+		res += B64_ALPHABET[accum] + '='; // bbbb00
 	}
 	return res;
 }
@@ -154,30 +153,18 @@ ByteArray.prototype.toBase64 = function(start, end) {
  * \param end	[optional]
  * \return	hex string
  */
-ByteArray.prototype.toHex = function(start, end) {
-	const _buf = this._buf;
-	const _sz = this._sz;
+ByteArray.prototype.toHex = function(start=0, end=-1) {
+	const _view = this._view;
 
-	switch (arguments.length) {
-	case 0:
-		start = 0;
-		// fallthrough
-	case 1:
-		end = _sz;
-	}
+	if (end == -1)
+		end = _view.byteLength;
+	else if (end < start)
+		throw new RuntimeError('end < start');
 
 	let res = '';
-	while (start < end) {
-		let x = _buf[start >> 2];
-		switch (start & 3) {
-		case 0: x >>>= 24;            break;
-		case 1: x  >>= 16; x &= 0xff; break;
-		case 2: x  >>=  8; x &= 0xff; break;
-		default:           x &= 0xff;
-		}
-
+	for (; start != end; start++) {
+		let x = _view.getUint8(start);
 		res += B16_ALPHABET[x >> 4] + B16_ALPHABET[x & 0xf];
-		start++;
 	}
 	return res;
 }
@@ -205,110 +192,82 @@ ByteArray.prototype.toText = function(enc=null) {
 		return this._toUtf8();
 	case 'UTF-16BE':
 	case 'utf-16be':
-		return this._toUtf16(true);
+		return this._toUtf16(false);
 	case 'UTF-16LE':
 	case 'utf-16le':
-		return this._toUtf16(false);
+		return this._toUtf16(true);
 	default:
-		throw new EncodingError("invalid encoding: " + enc);
+		throw new EncodingError('invalid encoding: ' + enc);
 	}
 }
 
 ByteArray.prototype.get = function(index) {
-	if (index < 0 || index >= this._sz)
-		throw new IndexError;
-	const x = this._buf[index >> 2];
-	switch (index & 3) {
-	case 0:  return x >>> 24;
-	case 1:  return (x >> 16) & 0xff;
-	case 2:  return (x >> 8) & 0xff;
-	default: return x & 0xff;
+	const _view = this._view;
+	if (index < 0 || index >= _view.byteLength)
+		throw new IndexError(index);
+	return _view.getUint8(index);
+}
+
+ByteArray.prototype.get16 = function(index, littleEndian=false) {
+	const _view = this._view;
+	if (index < 0 || index >= _view.byteLength >>> 1)
+		throw new IndexError(index);
+	return _view.getUint16(index << 1, littleEndian);
+}
+
+ByteArray.prototype.get32 = function(index, littleEndian=false) {
+	const _view = this._view;
+	if (index < 0 || index >= _view.byteLength >>> 2)
+		throw new IndexError(index);
+	return _view.getUint32(index << 2, littleEndian);
+}
+
+ByteArray.prototype.get64 = function(index, littleEndian=false) {
+	const _view = this._view;
+	if (index < 0 || index >= _view.byteLength >>> 3)
+		throw new IndexError(index);
+	index <<= 3;
+	const hi = _view.getUint32(index, littleEndian);
+	const lo = _view.getUint32(index + 4, littleEndian);
+	return littleEndian ? new Long(lo, hi) : new Long(hi, lo);
+}
+
+ByteArray.prototype.set = function(index, val) {
+	const _view = this._view;
+	if (index < 0 || index >= _view.byteLength)
+		throw new IndexError(index);
+	_view.setUint8(index, val);
+}
+
+ByteArray.prototype.set16 = function(index, val, littleEndian=false) {
+	const _view = this._view;
+	if (index < 0 || index >= _view.byteLength >>> 1)
+		throw new IndexError(index);
+	_view.setUint16(index << 1, val, littleEndian);
+}
+ByteArray.prototype.set32 = function(index, val, littleEndian=false) {
+	const _view = this._view;
+	if (index < 0 || index >= _view.byteLength >>> 2)
+		throw new IndexError(index);
+	_view.setUint32(index << 2, val, littleEndian);
+}
+
+ByteArray.prototype.set64 = function(index, val, littleEndian=false) {
+	const _view = this._view;
+	if (index < 0 || index >= _view.byteLength >>> 3)
+		throw new IndexError(index);
+	index <<= 3;
+	if (littleEndian) {
+		_view.setUint32(index, val.lo(), true);
+		_view.setUint32(index + 4, val.hi(), true);
+	} else {
+		_view.setUint32(index, val.hi(), false);
+		_view.setUint32(index + 4, val.lo(), false);
 	}
 }
 
-ByteArray.prototype.get16 = function(index) {
-	if (index < 0 || index >= (this._sz >> 1))
-		throw new IndexError;
-	const t = this._buf[index >> 1];
-	return index & 1 ? t & 0xffff : t >>> 16;
-}
-
-ByteArray.prototype.get32 = function(index) {
-	if (index < 0 || index >= (this._sz >> 2))
-		throw new IndexError;
-	return this._buf[index];
-}
-
-ByteArray.prototype.get64 = function(index) {
-	index <<= 1;
-	if (index < 0 || index+1 >= (this._sz >> 2))
-		throw new IndexError;
-	const _buf = this._buf;
-	return new Long(_buf[index], _buf[index + 1]);
-}
-
-ByteArray.prototype.set = function(index, value) {
-	if (index < 0 || index >= this._sz)
-		throw new IndexError;
-	const _buf = this._buf;
-	let mask;
-	value &= 0xff;
-	switch (index & 3) {
-	case 0:
-		value <<= 24;
-		mask = 0x00ffffff;
-		break;
-	case 1:
-		value <<= 16;
-		mask = 0xff00ffff;
-		break;
-	case 2:
-		value <<= 8;
-		mask = 0xffff00ff;
-		break;
-	case 3:
-		mask = 0xffffff00;
-	}
-	const i32 = index >> 2;
-	_buf[i32] = (_buf[i32] & mask) | value;
-}
-
-ByteArray.prototype.set16 = function(index, value) {
-	if (index < 0 || index >= (this._sz >> 1))
-		throw new IndexError;
-	const _buf = this._buf;
-	const i32 = index >> 1;
-	if (index & 1)
-		_buf[i32] = (_buf[i32] & 0xffff0000) | (value & 0xffff);
-	else
-		_buf[i32] = (_buf[i32] & 0xffff) | (value << 16);
-}
-ByteArray.prototype.set32 = function(index, value) {
-	if (index < 0 || index >= (this._sz >> 2))
-		throw new IndexError;
-	this._buf[index] = value & 0xffffffff;
-}
-
-ByteArray.prototype.set64 = function(index, value) {
-	index <<= 1;
-	if (index < 0 || index >= (this._sz >>> 2))
-		throw new IndexError;
-	const _buf = this._buf;
-	_buf[index] = value.hi();
-	_buf[index+1] = value.lo();
-}
-
-function _swap16_lo(n) {
+function _swap16(n) {
 	return ((n << 8) & 0xff00) | (n >> 8);
-}
-
-function _swap16_hi(n) {
-	return ((n << 8) & 0xff000000) | ((n >> 8) & 0xff0000);
-}
-
-function _swap32(n) {
-	n = ((n >> 8) & 0x00ff00ff) | ((n << 8) & 0xff00ff00);
-	return (n << 16) | (n >>> 16);
 }
 
 /** swap byte order in place
@@ -318,77 +277,65 @@ function _swap32(n) {
  * \param off	(optional) index in buffer to start at
  * \param count	(optional) number of elements to swap
  */
-ByteArray.prototype.swap16 = function(off, count) {
-	if (off < 0) throw new IndexError;
-	if (!count) return;
-	off <<= 1;
-	const end = off + count << 1;
-	if (end > this._sz) throw new IndexError;
+ByteArray.prototype.swap16 = function(off=0, count=-1) {
+	const _view = this._view;
+	let end;
+	if (count == -1)
+		end = (_view.byteLength >>> 1) - off;
+	else
+		end = off + count;
+	if (off < 0 || end > _view.byteLength >>> 1)
+		throw new IndexError;
 
-	const _buf = this._buf;
+	for (let i = off, j = off << 1; i != end; i++, j += 2)
+		_view.setUint16(j, _view.getUint16(j, false), true);
+}
 
-	let i = off >> 1;
-	if (off & 2) {
-		// swap lo half
-		const x = _buf[i];
-		_buf[i] = (x & 0xffff0000) | _swap16_lo(x & 0xffff);
-		off += 2;
-		i++;
-	}
-	while (off + 2 < end) {
-		// swap lo half, hi half
-		const x = _buf[i];
-		_buf[i] = _swap16_hi(x & 0xffff000) | _swap16_lo(x & 0xffff);
-		off += 4;
-		i++;
-	}
-	if (off != end) {
-		// swap hi half
-		const x = _buf[i];
-		_buf[i] = _swap16_hi(x & 0xffff0000) | (x & 0xffff);
-		off += 2;
+ByteArray.prototype.swap32 = function(off=0, count=-1) {
+	const _view = this._view;
+	let end;
+	if (count == -1)
+		end = (_view.byteLength >>> 2) - off;
+	else
+		end = off + count;
+	if (off < 0 || end > _view.byteLength >>> 2)
+		throw new IndexError;
+
+	for (let i = off, j = off << 2; i != end; i++, j += 4)
+		_view.setUint32(j, _view.getUint32(j, false), true);
+}
+
+ByteArray.prototype.swap64 = function(off=0, count=-1) {
+	const _view = this._view;
+	let end;
+	if (count == -1)
+		end = (_view.byteLength >>> 3) - off;
+	else
+		end = off + count;
+	if (off < 0 || end > _view.byteLength >>> 3)
+		throw new IndexError;
+
+	for (let i = off, j = off << 3; i != end; i++, j += 8) {
+		const hi = _view.getUint32(j,     false);
+		const lo = _view.getUint32(j + 4, false);
+		_view.setUint32(j,     lo, true);
+		_view.setUint32(j + 4, hi, true);
 	}
 }
 
-ByteArray.prototype.swap32 = function(off, count) {
-	if (off < 0) throw new IndexError;
-	if (!count) return;
-	off <<= 2;
-	const end = off + count << 2;
-	if (end > this._sz) throw new IndexError;
+ByteArray.prototype.fill = function(val=0) {
+	const _view = this._view;
+	const size = _view.byteLength;
+	const size4 = size & ~0x3;
 
-	const _buf = this._buf;
+	const fillByte = val & 0xff;
+	let fillWord = fillByte | (fillByte << 8);
+	fillWord |= fillWord << 16;
 
-	let i = off >> 2;
-	while (off < end) {
-		_buf[i] = _swap32(_buf[i]);
-		off += 4;
-		i++;
-	}
-}
-
-ByteArray.prototype.swap64 = function(off, count) {
-	if (off < 0) throw new IndexError;
-	if (!count) return;
-	off <<= 3;
-	const end = off + count << 3;
-	if (end > this._sz) throw new IndexError;
-
-	const _buf = this._buf;
-
-	let i = off >> 3;
-	while (off < end) {
-		const t = _swap32(_buf[i]);
-		_buf[i] = _swap32(_buf[i+1]);
-		_buf[i+1] = t;
-		off += 8;
-		i += 2;
-	}
-}
-
-ByteArray.prototype.fill = function(value) {
-	// XXX this is probably wrong unless value is 0
-	this._buf.fill(value);
+	for (let i = 0; i != size4; i += 4)
+		_view.setUint32(i, fillWord);
+	for (let i = size4; i != size; i++)
+		_view.setUint8(i, fillByte);
 }
 
 /** convert a hex string to bytes
@@ -398,9 +345,8 @@ ByteArray.prototype.fill = function(value) {
 ByteArray.fromHex = str => {
 	if (str.length & 1) throw new RuntimeError('invalid parameter');
 
-	// len: ceil(str.length / 8)
-	const buf = new Array((str.length + 7) >> 3);
-	const sz = str.length >> 1;
+	const buf = new ArrayBuffer(str.length >> 1);
+	const view = new DataView(buf);
 
 	let pos = 0;
 	let accum = 0;
@@ -409,22 +355,16 @@ ByteArray.fromHex = str => {
 		const c = B16_ALPHABET_REV[ch.charCodeAt(0)];
 		if (c == null) throw new RuntimeError('invalid parameter');
 		switch (accumSz) {
-		case 0: accum  = c << 28; break;
-		case 1: accum |= c << 24; break;
-		case 2: accum |= c << 20; break;
-		case 3: accum |= c << 16; break;
-		case 4: accum |= c << 12; break;
-		case 5: accum |= c << 8; break;
-		case 6: accum |= c << 4; break;
-		case 7:
-			buf[pos++] = accum | c;
+		case 0:
+			accum = c << 4;
+			accumSz = 1;
+			break;
+		case 1:
+			view.setUint8(pos++, accum | c);
+			accumSz = 0;
 		}
-		accumSz++;
-		accumSz &= 0x7;
 	}
-	if (accumSz)
-		buf[pos++] = accum;
-	return new ByteArray(sz, buf);
+	return new ByteArray(buf);
 }
 
 /** convert a base64 string to bytes
@@ -433,52 +373,79 @@ ByteArray.fromHex = str => {
  */
 ByteArray.fromBase64 = str => {
 	if (str.length & 3) throw new RuntimeError('invalid parameter');
+	// inclusive bounds
+	const maxBytes = (str.length >>> 2) * 3;
+	const minBytes = maxBytes - 2;
 
-	const buf = [];
-	let sz = 0;
+	// [ABC] is some b64 character, [E] is '=', [X] is dont-know
+	const [S_XXXX, S_AXXX, S_ABXX, S_ABCX, S_ABEX, S_END] = [0, 1, 2, 3, 4, 5];
 
-	// stores a sequence of up to four input values (24 bits)
+	const bytes = [];
 	let accum = 0;
-	let accumSz = 0;
-	let pad = 0;
+	let state = S_XXXX;
 	for (const ch of str.split('')) {
 		const c = B64_ALPHABET_REV[ch.charCodeAt(0)];
 		if (c == null) throw new RuntimeError('invalid parameter');
 
-		accum <<= 6;
-		// disallow more than two pad chars or anything after a pad
-		if (c == -1) {
-			if (++pad == 3) throw new RuntimeError('invalid parameter');
-		} else if (pad) {
-			// non-trailing padding
-			throw new RuntimeError('invalid parameter');
-		} else
-			accum |= c;
-
-		if (++accumSz == 4) {
-			switch (sz & 3) {
-			case 0:
-				buf.push(accum << 8);
-				break;
-			case 1:
-				buf[buf.length-1] |= accum;
-				break;
-			case 2:
-				buf[buf.length-1] |= accum >> 8;
-				if (!pad)
-					buf.push(accum << 24);
-				break;
-			default:
-				buf[buf.length-1] |= accum >> 16;
-				if (pad < 2)
-					buf.push(accum << 16);
+		switch (state) {
+		case S_XXXX:
+			if (c == -1) {
+				// ...[=***]...
+				throw new RuntimeException('invalid parameter');
 			}
-			accum = 0;
-			accumSz = 0;
-			sz += 3;
+			accum = c << 2; // aaaaaa00
+			state = S_AXXX;
+			break;
+		case S_AXXX:
+			if (c == -1) {
+				// ...[a=**]...
+				throw new RuntimeException('invalid parameter');
+			}
+			bytes.push(accum | (c >> 4)); // aaaaaabb
+			accum = (c & 0xf) << 4; // bbbb0000
+			state = S_ABXX;
+			break;
+		case S_ABXX:
+			if (c == -1)
+				state = S_ABEX;
+			else {
+				bytes.push(accum | (c >> 2)); // bbbbcccc
+				accum = (c & 0x3) << 6; // cc000000
+				state = S_ABCX;
+			}
+			break;
+		case S_ABCX:
+			if (c == -1)
+				state = S_END;
+			else {
+				bytes.push(accum | c); // ccdddddd
+				state = S_XXXX;
+			}
+			break;
+		case S_ABEX:
+			if (c != -1) {
+				// ...[ab=c]...
+				throw new RuntimeException('invalid parameter');
+			}
+			state = S_END;
+			break;
+		case S_END:
+			// ...[ab*=][****]...
+			throw new RuntimeException('invalid parameter');
+		default:
+			throw new AssertionError('bad state ' + state);
 		}
 	}
-	return new ByteArray(sz - pad, buf);
+	if (bytes.length < minBytes || bytes.length > maxBytes)
+		throw new AssertionError('bad length');
+
+	// copy bytes into an ArrayBuffer
+	const buf = new ArrayBuffer(bytes.length);
+	const view = new DataView(buf);
+	for (let i = 0; i != bytes.length; i++)
+		view.setUint8(i, bytes[i]);
+
+	return new ByteArray(buf);
 }
 
 /** convert a text string to bytes
@@ -500,41 +467,32 @@ ByteArray.fromText = (str, enc='utf-8') => {
 		return _fromUtf8(str);
 	case 'UTF-16BE':
 	case 'utf-16be':
-		return _fromUtf16(str, true);
+		return _fromUtf16(str, false);
 	case 'UTF-16LE':
 	case 'utf-16le':
-		return _fromUtf16(str, false);
+		return _fromUtf16(str, true);
 	default:
-		throw new EncodingError("invalid encoding: " + enc);
+		throw new EncodingError('invalid encoding: ' + enc);
 	}
 }
 
 ByteArray.generateRandom = size => {
-	let random;
 	if (window.crypto === undefined) {
-		const buffer = new Buffer;
+		const arr = new Uint8Array(size);
 		for (let i = 0; i < size; i++)
-			buffer.push8((Math.random() * 0x100) ^ 0);
-		return new ByteArray(size, buffer.finalize());
-	} else {
-		console.info('here');
-		let tmp = new Uint32Array((size + 3) >> 2);
-		crypto.getRandomValues(tmp);
-		switch (size & 3) {
-		case 1:
-			tmp[tmp.length - 1] &= 0xff000000;
-			break;
-		case 2:
-			tmp[tmp.length - 1] &= 0xffff0000;
-			break;
-		case 3:
-			tmp[tmp.length - 1] &= 0xffffff00;
-		}
-		const random = new ByteArray(size);
-		for (let i = 0; i < tmp.length; i++)
-			random._buf[i] = tmp[i];
-		return random;
+			arr[i] = (Math.random() * 0x100) ^ 0;
+		return new ByteArray(arr.buffer);
 	}
+
+	let tmp;
+	if (size & 1)
+		tmp = new Uint8Array(size);
+	else if (size & 3)
+		tmp = new Uint16Array(size);
+	else
+		tmp = new Uint32Array(size);
+	crypto.getRandomValues(tmp);
+	return new ByteArray(tmp.buffer);
 }
 
 function Buffer() {
@@ -641,7 +599,7 @@ Buffer.prototype.finalize = function() {
 	this._buf = [];
 	this._accumSz = 0;
 
-	return new ByteArray(len, out);
+	return new ByteArray(out, len);
 }
 
 const _fromLatin = str => {
@@ -689,14 +647,10 @@ const _fromUtf8 = str => {
 	return buf.finalize();
 }
 
-const _fromUtf16 = (str, bigEndian) => {
+const _fromUtf16 = (str, littleEndian) => {
 	const buf = [];
 
-	let swap;
-	if (bigEndian)
-		swap = x => x;
-	else
-		swap = _swap16_lo;
+	const swap = littleEndian ? _swap16 : (x => x);
 
 	for (const ch of str.split('')) {
 		const code = ch.charCodeAt(0);
@@ -719,43 +673,25 @@ const _fromUtf16 = (str, bigEndian) => {
 }
 
 ByteArray.prototype._toLatin = function() {
-	const _buf = this._buf;
-	const _sz = this._sz;
-
-	if (!_sz) return '';
+	const _view = this._view;
+	const sz = _view.byteLength;
 
 	let res = '';
-	for (let i = 0; i < _sz; i++) {
-		let x = _buf[i >> 2];
-		switch (i & 3) {
-		case 0: x >>>= 24;            break;
-		case 1: x  >>= 16; x &= 0xff; break;
-		case 2: x  >>=  8; x &= 0xff; break;
-		default:           x &= 0xff;
-		}
-		res += String.fromCharCode(x);
-	}
+	for (let i = 0; i != sz; i++)
+		res += String.fromCharCode(_view.getUint8(i));
 	return res;
 }
 
 ByteArray.prototype._toUtf8 = function() {
-	const _buf = this._buf;
-	const _sz = this._sz;
-
-	if (!_sz) return '';
+	const _view = this._view;
+	const sz = _view.byteLength;
 
 	let accum = 0;
 	let accumLeft = 0;
 
 	let res = '';
-	for (let i = 0; i < _sz; i++) {
-		let x = _buf[i >> 2];
-		switch (i & 3) {
-		case 0: x >>>= 24;            break;
-		case 1: x  >>= 16; x &= 0xff; break;
-		case 2: x  >>=  8; x &= 0xff; break;
-		default:           x &= 0xff;
-		}
+	for (let i = 0; i != sz; i++) {
+		let x = _view.getUint8(i);
 
 		if (accumLeft) {
 			// in other words (x < 0x80 || x >= 0xc0)
@@ -803,31 +739,18 @@ ByteArray.prototype._toUtf8 = function() {
 	return res;
 }
 
-ByteArray.prototype._toUtf16 = function(bigEndian) {
-	const _buf = this._buf;
-	const _sz = this._sz;
+ByteArray.prototype._toUtf16 = function(littleEndian) {
+	const _view = this._view;
+	const sz = _view.byteLength;
 
-	if (!_sz) return '';
-	if (_sz & 1) throw new EncodingError('invalid UTF-16');
-
-	let swap;
-	if (bigEndian)
-		swap = x => x;
-	else
-		swap = _swap16_lo;
+	if (sz & 1) throw new EncodingError('invalid UTF-16');
 
 	let accum = 0;
 	let accumLeft = false;
 
 	let res = '';
-	const _sz2 = _sz >> 1;
-	for (let i = 0; i < _sz2; i++) {
-		let x = _buf[i >> 1];
-		if (i & 1)
-			x &= 0xffff;
-		else
-			x >>>= 16;
-		x = swap(x);
+	for (let i = 0; i != sz; i += 2) {
+		const x = _view.getUint16(i, littleEndian);
 
 		if (accumLeft) {
 			if (x < 0xdc00)
