@@ -24,21 +24,15 @@ function msgClear() {
 		container.removeChild(container.firstChild);
 }
 
-const Timer = (function() {
-	function Timer() {
+class Timer {
+	constructor() {
 		this._start = new Date().getTime();
 	}
 
-	function read() {
+	read() {
 		return new Date().getTime() - this._start;
 	}
-
-	Timer.prototype = {
-		constructor: Timer,
-		read: read,
-	};
-	return Timer;
-})();
+}
 
 function addRunTime(runTime, group, milli) {
 	runTime[group] = (runTime[group] || 0) + milli;

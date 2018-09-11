@@ -504,111 +504,111 @@ function _swap16(n) {
 	return ((n << 8) & 0xff00) | (n >> 8);
 }
 
-function Buffer() {
-	this._buf = [];
-	this._accum = 0;
-	this._accumSz = 0;
-}
-Buffer.prototype = {};
-Buffer.prototype.constructor = Buffer;
-
-Buffer.prototype.push8 = function(val) {
-	switch (this._accumSz) {
-	case 0:
-		this._accum = val << 24;
-		this._accumSz = 1;
-		break;
-	case 1:
-		this._accum |= val << 16;
-		this._accumSz = 2;
-		break;
-	case 2:
-		this._accum |= val << 8;
-		this._accumSz = 3;
-		break;
-	default:
-		this._buf.push(this._accum | val);
+class Buffer {
+	constructor() {
+		this._buf = [];
+		this._accum = 0;
 		this._accumSz = 0;
 	}
-}
 
-Buffer.prototype.push16 = function(val) {
-	switch (this._accumSz) {
-	case 0:
-		this._accum = val << 16;
-		this._accumSz = 2;
-		break;
-	case 1:
-		this._accum |= val << 8;
-		this._accumSz = 3;
-		break;
-	case 2:
-		this._buf.push(this._accum | val);
+	push8(val) {
+		switch (this._accumSz) {
+		case 0:
+			this._accum = val << 24;
+			this._accumSz = 1;
+			break;
+		case 1:
+			this._accum |= val << 16;
+			this._accumSz = 2;
+			break;
+		case 2:
+			this._accum |= val << 8;
+			this._accumSz = 3;
+			break;
+		default:
+			this._buf.push(this._accum | val);
+			this._accumSz = 0;
+		}
+	}
+
+	push16(val) {
+		switch (this._accumSz) {
+		case 0:
+			this._accum = val << 16;
+			this._accumSz = 2;
+			break;
+		case 1:
+			this._accum |= val << 8;
+			this._accumSz = 3;
+			break;
+		case 2:
+			this._buf.push(this._accum | val);
+			this._accumSz = 0;
+			break;
+		default:
+			this._buf.push(this._accum | (val >>> 8));
+			this._accum = val << 24;
+			this._accumSz = 1;
+		}
+	}
+
+	push24(val) {
+		switch (this._accumSz) {
+		case 0:
+			this._accum = val << 8;
+			this._accumSz = 3;
+			break;
+		case 1:
+			this._buf.push(this._accum | val);
+			this._accumSz = 0;
+			break;
+		case 2:
+			this._buf.push(this._accum | (val >>> 8));
+			this._accum = val << 24;
+			this._accumSz = 1;
+			break;
+		default:
+			this._buf.push(this._accum | (val >>> 16));
+			this._accum = val << 16;
+			this._accumSz = 2;
+		}
+	}
+
+	push32(val) {
+		switch (this._accumSz) {
+		case 0:
+			this._buf.push(val);
+			break;
+		case 1:
+			this._buf.push(this._accum | (val >>> 24));
+			this._accum = val << 8;
+			break;
+		case 2:
+			this._buf.push(this._accum | (val >>> 16));
+			this._accum = val << 16;
+			break;
+		default:
+			this._buf.push(this._accum | (val >>> 8));
+			this._accum = val << 24;
+		}
+	}
+
+	finalize() {
+		const out = this._buf;
+		const _accum = this._accum;
+		const _accumSz = this._accumSz;
+		let len = out.length << 2;
+		if (_accumSz) {
+			out.push(_accum);
+			len += _accumSz;
+		}
+
+		// reset
+		this._buf = [];
 		this._accumSz = 0;
-		break;
-	default:
-		this._buf.push(this._accum | (val >>> 8));
-		this._accum = val << 24;
-		this._accumSz = 1;
+
+		return new ByteArray(out, len);
 	}
-}
-
-Buffer.prototype.push24 = function(val) {
-	switch (this._accumSz) {
-	case 0:
-		this._accum = val << 8;
-		this._accumSz = 3;
-		break;
-	case 1:
-		this._buf.push(this._accum | val);
-		this._accumSz = 0;
-		break;
-	case 2:
-		this._buf.push(this._accum | (val >>> 8));
-		this._accum = val << 24;
-		this._accumSz = 1;
-		break;
-	default:
-		this._buf.push(this._accum | (val >>> 16));
-		this._accum = val << 16;
-		this._accumSz = 2;
-	}
-}
-
-Buffer.prototype.push32 = function(val) {
-	switch (this._accumSz) {
-	case 0:
-		this._buf.push(val);
-		break;
-	case 1:
-		this._buf.push(this._accum | (val >>> 24));
-		this._accum = val << 8;
-		break;
-	case 2:
-		this._buf.push(this._accum | (val >>> 16));
-		this._accum = val << 16;
-		break;
-	default:
-		this._buf.push(this._accum | (val >>> 8));
-		this._accum = val << 24;
-	}
-}
-
-Buffer.prototype.finalize = function() {
-	const out = this._buf;
-	const _accum = this._accum;
-	const _accumSz = this._accumSz;
-	let len = out.length << 2;
-	if (_accumSz) {
-		out.push(_accum);
-		len += _accumSz;
-	}
-
-	// reset
-	this._buf = [];
-	this._accumSz = 0;
-
-	return new ByteArray(out, len);
 }
 
 const _fromLatin = str => {
