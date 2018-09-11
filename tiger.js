@@ -20,149 +20,155 @@ const BLOCK = 64;	/**< Block size in bytes */
 const DIGEST = 24;	/**< Digest size in bytes */
 const NUM_PASSES = 3;
 
-/** Tiger hash function
- * \param version (Optional) version (1 [default] or 2)
- */
-function Tiger(version=1) {
-	Hash.call(this);
-	// default to 1
-	this._buf = new ByteArray(BLOCK);
-	this._version = version == 2 ? 2 : 1
+class Tiger extends Hash {
+	/** Tiger hash function
+	 * \param version (Optional) version (1 [default] or 2)
+	 */
+	constructor(version=1) {
+		super();
+		// default to 1
+		this._buf = new ByteArray(BLOCK);
+		this._version = version == 2 ? 2 : 1
+	}
+
+	init() {
+		this._res = [
+			new Long(0x01234567, 0x89abcdef),
+			new Long(0xfedcba98, 0x76543210),
+			new Long(0xf096a5b4, 0xc3b2e187),
+		];
+		this._length = new Long;
+		this._sz = 0;
+	}
+
+	update(buf, sz) {
+		if (sz > buf.size()) sz = buf.size();
+		const temp = new ByteArray(BLOCK);
+		let src = 0; // pos
+
+		const _buf = this._buf;
+		let _sz = this._sz;
+
+		this._length = this._length.plus(new Long(sz));
+
+		if (_sz + sz < BLOCK) {
+			// buffer won't fill
+			// copy sz bytes
+			if ((_sz | sz | src) & 3) {
+				for (let i = 0; i < sz; i++)
+					_buf.set(_sz++, buf.get(src++));
+			} else {
+				const sz32 = sz >>> 2;
+				let _sz32 = _sz >>> 2;
+				let src32 = src >>> 2;
+				for (let i = 0; i < sz32; i++)
+					_buf.set32(_sz32++,
+					    buf.get32(src32++));
+				_sz = _sz32 << 2;
+				src = src32 << 2;
+			}
+			this._sz = _sz;
+			return;
+		}
+
+		// if data remaining in ctx
+		if (_sz) {
+			const bytes = BLOCK - _sz;
+			if ((_sz | sz | src) & 3) {
+				for (let i = 0; i < bytes; i++)
+					_buf.set(_sz++, buf.get(src++));
+			} else {
+				const sz32 = sz >>> 2;
+				let _sz32 = _sz >>> 2;
+				let src32 = src >>> 2;
+				for (let i = 0; i < sz32; i++)
+					_buf.set32(_sz32++,
+					    buf.get32(src32++));
+				_sz = _sz32 << 2;
+				src = src32 << 2;
+			}
+
+			_buf.swap64(0, BLOCK >>> 3);
+			_compress(_buf, this._res);
+			sz -= bytes;
+			// context buffer now empty
+		}
+
+		while (sz >= BLOCK) {
+			if (src & 3) {
+				for (let i = 0; i < BLOCK; i++)
+					_buf.set(i, buf.get(src++));
+			} else {
+				const block32 = BLOCK >>> 2;
+				let src32 = src >>> 2;
+				for (let i = 0; i < block32; i++)
+					_buf.set32(i, buf.get32(src32++));
+				src = src32 << 2;
+			}
+			_buf.swap64(0, BLOCK >>> 3);
+			_compress(_buf, this._res);
+			sz -= BLOCK;
+		}
+
+		if (sz) {
+			// fill context buffer with the remaining bytes
+			if ((sz | src) & 3) {
+				for (let i = 0; i < sz; i++)
+					_buf.set(i, buf.get(src++));
+			} else {
+				const sz32 = sz >>> 2;
+				let src32 = src >>> 2;
+				for (let i = 0; i < sz32; i++)
+					_buf.set32(i, buf.get32(src32++));
+				src = src32 << 2;
+			}
+		}
+		this._sz = sz;
+	}
+
+	end() {
+		const _buf = this._buf;
+		let i = this._sz;
+
+		// copy the version byte
+		_buf.set(i++, this._version == 1 ? 0x01 : 0x80);
+
+		// fill the remainder of this 'long' with zeros
+		while (i & 7) _buf.set(i++, 0);
+
+		if (i > 56) {
+			// no room for length
+			_buf.swap64(0, BLOCK >>> 3);
+			_compress(_buf, this._res);
+			i = 0;
+		}
+
+		// clear all but last 64 bits
+		while (i < 56) _buf.set(i++, 0);
+
+		_buf.swap64(0, (BLOCK >>> 3) - 1);
+		_buf.set64(i >>> 3, this._length.lshift(3));
+		_compress(_buf, this._res);
+
+		let [r0, r1, r2] = this._res;
+		const res = new ByteArray(DIGEST);
+		res.set64(0, r0, true);
+		res.set64(1, r1, true);
+		res.set64(2, r2, true);
+		return res;
+	}
+
+	digestSize() {
+		return DIGEST;
+	}
+
+	blockSize() {
+		return BLOCK;
+	}
 }
 
 Tiger.BLOCK = BLOCK;
 Tiger.DIGEST = DIGEST;
-
-Tiger.prototype = Object.create(Hash.prototype);
-Tiger.prototype.constructor = Tiger;
-
-Tiger.prototype.digestSize = () => DIGEST;
-Tiger.prototype.blockSize = () => BLOCK;
-
-Tiger.prototype.init = function() {
-	this._res = [
-		new Long(0x01234567, 0x89abcdef),
-		new Long(0xfedcba98, 0x76543210),
-		new Long(0xf096a5b4, 0xc3b2e187),
-	];
-	this._length = new Long;
-	this._sz = 0;
-}
-
-Tiger.prototype.update = function(buf, sz) {
-	if (sz > buf.size()) sz = buf.size();
-	const temp = new ByteArray(BLOCK);
-	let src = 0; // pos
-
-	const _buf = this._buf;
-	let _sz = this._sz;
-
-	this._length = this._length.plus(new Long(sz));
-
-	if (_sz + sz < BLOCK) {
-		// buffer won't fill
-		// copy sz bytes
-		if ((_sz | sz | src) & 3) {
-			for (let i = 0; i < sz; i++)
-				_buf.set(_sz++, buf.get(src++));
-		} else {
-			const sz32 = sz >>> 2;
-			let _sz32 = _sz >>> 2;
-			let src32 = src >>> 2;
-			for (let i = 0; i < sz32; i++)
-				_buf.set32(_sz32++, buf.get32(src32++));
-			_sz = _sz32 << 2;
-			src = src32 << 2;
-		}
-		this._sz = _sz;
-		return;
-	}
-
-	// if data remaining in ctx
-	if (_sz) {
-		const bytes = BLOCK - _sz;
-		if ((_sz | sz | src) & 3) {
-			for (let i = 0; i < bytes; i++)
-				_buf.set(_sz++, buf.get(src++));
-		} else {
-			const sz32 = sz >>> 2;
-			let _sz32 = _sz >>> 2;
-			let src32 = src >>> 2;
-			for (let i = 0; i < sz32; i++)
-				_buf.set32(_sz32++, buf.get32(src32++));
-			_sz = _sz32 << 2;
-			src = src32 << 2;
-		}
-
-		_buf.swap64(0, BLOCK >>> 3);
-		_compress(_buf, this._res);
-		sz -= bytes;
-		// context buffer now empty
-	}
-
-	while (sz >= BLOCK) {
-		if (src & 3) {
-			for (let i = 0; i < BLOCK; i++)
-				_buf.set(i, buf.get(src++));
-		} else {
-			const block32 = BLOCK >>> 2;
-			let src32 = src >>> 2;
-			for (let i = 0; i < block32; i++)
-				_buf.set32(i, buf.get32(src32++));
-			src = src32 << 2;
-		}
-		_buf.swap64(0, BLOCK >>> 3);
-		_compress(_buf, this._res);
-		sz -= BLOCK;
-	}
-
-	if (sz) {
-		// fill context buffer with the remaining bytes
-		if ((sz | src) & 3) {
-			for (let i = 0; i < sz; i++)
-				_buf.set(i, buf.get(src++));
-		} else {
-			const sz32 = sz >>> 2;
-			let src32 = src >>> 2;
-			for (let i = 0; i < sz32; i++)
-				_buf.set32(i, buf.get32(src32++));
-			src = src32 << 2;
-		}
-	}
-	this._sz = sz;
-}
-
-Tiger.prototype.end = function() {
-	const _buf = this._buf;
-	let i = this._sz;
-
-	// copy the version byte
-	_buf.set(i++, this._version == 1 ? 0x01 : 0x80);
-
-	// fill the remainder of this 'long' with zeros
-	while (i & 7) _buf.set(i++, 0);
-
-	if (i > 56) {
-		// no room for length
-		_buf.swap64(0, BLOCK >>> 3);
-		_compress(_buf, this._res);
-		i = 0;
-	}
-
-	// clear all but last 64 bits
-	while (i < 56) _buf.set(i++, 0);
-
-	_buf.swap64(0, (BLOCK >>> 3) - 1);
-	_buf.set64(i >>> 3, this._length.lshift(3));
-	_compress(_buf, this._res);
-
-	let [r0, r1, r2] = this._res;
-	const res = new ByteArray(DIGEST);
-	res.set64(0, r0, true);
-	res.set64(1, r1, true);
-	res.set64(2, r2, true);
-	return res;
-}
 
 function _round(a, b, c, x, m) {
 	const c0 = c.xor(x);

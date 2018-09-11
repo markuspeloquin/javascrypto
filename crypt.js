@@ -16,45 +16,46 @@
 
 const Crypt = (() => {
 
-/** Create a block encrypter
- * \param cipher	The Cipher object to en/decrypt with
- * \param mode		One of Crypt.MODE_*
- */
-function Crypt(cipher, mode) {
-	this._cipher = cipher;
-	this._mode = mode;
+class Crypt {
+	/** Create a block encrypter
+	 * \param cipher	The Cipher object to en/decrypt with
+	 * \param mode		One of Crypt.MODE_*
+	 */
+	constructor(cipher, mode) {
+		this._cipher = cipher;
+		this._mode = mode;
+	}
+
+	/** Encrypt data
+	 * \param plaintext	Data to encrypt
+	 * \param sz		Size of plaintext in bytes
+	 * \returns		The encrypted data (size could be rounded up)
+	 */
+	encrypt(plaintext, sz) {
+		switch (this._mode) {
+		case Crypt.MODE_CTR:
+			return _ctr(this._cipher, plaintext, true, sz);
+		default:
+			throw 'No such block mode';
+		}
+	}
+
+	/** Decrypt data
+	 * \param ciphertext	Data to decrypt
+	 * \param sz		Size of plaintext in bytes
+	 * \returns		The decrypted data
+	 */
+	decrypt(ciphertext, sz) {
+		switch (this._mode) {
+		case Crypt.MODE_CTR:
+			return _ctr(this._cipher, ciphertext, false, sz);
+		default:
+			throw 'No such block mode';
+		}
+	}
 }
+
 Crypt.MODE_CTR = 0;	/**< Counter block mode */
-Crypt.prototype = {};
-Crypt.prototype.constructor = Crypt;
-
-/** Encrypt data
- * \param plaintext	Data to encrypt
- * \param sz		Size of plaintext in bytes
- * \returns		The encrypted data (size could be rounded up)
- */
-Crypt.prototype.encrypt = function(plaintext, sz) {
-	switch (this._mode) {
-	case Crypt.MODE_CTR:
-		return _ctr(this._cipher, plaintext, true, sz);
-	default:
-		throw 'No such block mode';
-	}
-}
-
-/** Decrypt data
- * \param ciphertext	Data to decrypt
- * \param sz		Size of plaintext in bytes
- * \returns		The decrypted data
- */
-Crypt.prototype.decrypt = function(ciphertext, sz) {
-	switch (this._mode) {
-	case Crypt.MODE_CTR:
-		return _ctr(this._cipher, ciphertext, false, sz);
-	default:
-		throw 'No such block mode';
-	}
-}
 
 function _ctr(cipher, text, encrypt, sz) {
 	const szBlock = cipher.blockSize();

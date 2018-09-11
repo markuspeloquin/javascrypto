@@ -14,150 +14,141 @@
 
  'use strict';
 
-const Serpent = (function() {
+const Serpent = (() => {
 
-const BLOCK = 16;		/** The block size in bytes */
+const BLOCK = 16;	/** The block size in bytes */
 const KEYMIN = 16;	/** The minimum key size */
 const KEYMAX = 32;	/** The maximum key size */
 const KEYSTEP = 8;	/** The separation between key sizes */
 
-function swap32(x) {
-	const x0 = ((x & 0xff00ff00) >>> 8) | ((x & 0x00ff00ff) << 8);
-	return (x0 >>> 16) | (x0 << 16);
-}
+const ROL = (x, n) => (x <<  n) | (x >>> (32 - n));
+const ROR = (x, n) => (x >>> n) | (x <<  (32 - n));
 
-function ROL(x, n) {
-	return (x << n) | (x >>> (32 - n));
-}
-function ROR(x, n) {
-	return (x >>> n) | (x << (32 - n));
-}
+class Serpent extends Cipher {
+	/** The Serpent cipher
+	 * \param key	The symetric key
+	 * \throws	Bad key size (16, 24, 32 bytes)
+	 */
+	constructor(key) {
+		super(BLOCK);
 
-/** The Serpent cipher
- * \param key	The symetric key
- * \throws	Bad key size (16, 24, 32 bytes)
- */
-function Serpent(key) {
-	Cipher.call(this, BLOCK);
+		// w starts at offset 8
+		const w = new Array(8 + 4 * 33);
+		const sz = key.size();
 
-	// w starts at offset 8
-	const w = new Array(8 + 4 * 33);
-	const sz = key.size();
+		if (sz != 16 && sz != 24 && sz != 32)
+			throw 'Serpent: Bad key size';
 
-	if (sz != 16 && sz != 24 && sz != 32)
-		throw 'Serpent: Bad key size';
+		// copy with endian-swap
+		for (let i = 0; i < sz >>> 2; i++)
+			w[i] = key.get32(i, true);
+		if (sz < 32) {
+			// fill the remainder with the binary pattern b10000..., but
+			// reversed
+			w[sz >>> 2] = 1;
+			for (let i = sz >>> 2 + 1; i < 8; i++)
+				w[i] = 0;
+		}
 
-	// copy with endian-swap
-	for (let i = 0; i < sz >>> 2; i++)
-		w[i] = key.get32(i, true);
-	if (sz < 32) {
-		// fill the remainder with the binary pattern b10000..., but
-		// reversed
-		w[sz >>> 2] = 1;
-		for (let i = sz >>> 2 + 1; i < 8; i++)
-			w[i] = 0;
-	}
+		// get w_0 through w_131 (4*33 values)
+		for (let i = 0; i < 132; i++)
+			w[i+8] = ROL(w[i] ^ w[i+3] ^ w[i+5] ^ w[i+7] ^ PHI ^ i, 11);
 
-	// get w_0 through w_131 (4*33 values)
-	for (let i = 0; i < 132; i++)
-		w[i+8] = ROL(w[i] ^ w[i+3] ^ w[i+5] ^ w[i+7] ^ PHI ^ i, 11);
+		const s = this._subkeys = new Array(33);
+		for (let i = 0; i < 33; i++)
+			s[i] = [0, 0, 0, 0];
 
-	const s = this._subkeys = new Array(33);
-	for (let i = 0; i < 33; i++)
-		s[i] = [0, 0, 0, 0];
-
-	// calculate round k_{4i..4i+3}=subkey[i] from w_{4i..4i+3}
-	const sl = new Array(4); // slice
-	for (let i = 8, j = 0; j < 33; i += 4, j++) {
-		sl[0] = w[i];
-		sl[1] = w[i+1];
-		sl[2] = w[i+2];
-		sl[3] = w[i+3];
-		switch (j & 7) {
-		case 0: _sbox3(sl, s[j]); break;
-		case 1: _sbox2(sl, s[j]); break;
-		case 2: _sbox1(sl, s[j]); break;
-		case 3: _sbox0(sl, s[j]); break;
-		case 4: _sbox7(sl, s[j]); break;
-		case 5: _sbox6(sl, s[j]); break;
-		case 6: _sbox5(sl, s[j]); break;
-		case 7: _sbox4(sl, s[j]);
+		// calculate round k_{4i..4i+3}=subkey[i] from w_{4i..4i+3}
+		const sl = new Array(4); // slice
+		for (let i = 8, j = 0; j < 33; i += 4, j++) {
+			sl[0] = w[i];
+			sl[1] = w[i+1];
+			sl[2] = w[i+2];
+			sl[3] = w[i+3];
+			switch (j & 7) {
+			case 0: _sbox3(sl, s[j]); break;
+			case 1: _sbox2(sl, s[j]); break;
+			case 2: _sbox1(sl, s[j]); break;
+			case 3: _sbox0(sl, s[j]); break;
+			case 4: _sbox7(sl, s[j]); break;
+			case 5: _sbox6(sl, s[j]); break;
+			case 6: _sbox5(sl, s[j]); break;
+			case 7: _sbox4(sl, s[j]);
+			}
 		}
 	}
+
+	encrypt(plaintext, ciphertext) {
+		const _subkeys = this._subkeys;
+		const x = [
+			plaintext.get32(0, true),
+			plaintext.get32(1, true),
+			plaintext.get32(2, true),
+			plaintext.get32(3, true),
+		];
+		const y = new Array(4);
+		for (let i = 0; i < 31; i++) {
+			_keying(x, _subkeys[i]);
+			switch (i & 7) {
+			case 0: _sbox0(x, y); break;
+			case 1: _sbox1(x, y); break;
+			case 2: _sbox2(x, y); break;
+			case 3: _sbox3(x, y); break;
+			case 4: _sbox4(x, y); break;
+			case 5: _sbox5(x, y); break;
+			case 6: _sbox6(x, y); break;
+			case 7: _sbox7(x, y);
+			}
+			_transform(y, x);
+		}
+		_keying(x, _subkeys[31]);
+		_sbox7(x, y);
+		_keying(y, _subkeys[32]);
+		ciphertext.set32(0, y[0], true);
+		ciphertext.set32(1, y[1], true);
+		ciphertext.set32(2, y[2], true);
+		ciphertext.set32(3, y[3], true);
+	}
+
+	decrypt(plaintext, ciphertext) {
+		const _subkeys = this._subkeys;
+		const x = [
+			ciphertext.get32(0, true),
+			ciphertext.get32(1, true),
+			ciphertext.get32(2, true),
+			ciphertext.get32(3, true),
+		];
+		const y = new Array(4);
+		_keying(x, _subkeys[32]);
+		_sbox7Inv(x, y);
+		_keying(y, _subkeys[31]);
+		for (let i = 30; i > -1; i--) {
+			_transformInv(y, x);
+			switch (i & 7) {
+			case 0: _sbox0Inv(x, y); break;
+			case 1: _sbox1Inv(x, y); break;
+			case 2: _sbox2Inv(x, y); break;
+			case 3: _sbox3Inv(x, y); break;
+			case 4: _sbox4Inv(x, y); break;
+			case 5: _sbox5Inv(x, y); break;
+			case 6: _sbox6Inv(x, y); break;
+			case 7: _sbox7Inv(x, y);
+			}
+			_keying(y, _subkeys[i]);
+		}
+		plaintext.set32(0, y[0], true);
+		plaintext.set32(1, y[1], true);
+		plaintext.set32(2, y[2], true);
+		plaintext.set32(3, y[3], true);
+	}
 }
-Serpent.prototype = Object.create(Cipher.prototype);
-Serpent.prototype.constructor = Serpent;
 
 Serpent.BLOCK = BLOCK;
 Serpent.KEYMIN = KEYMIN;
 Serpent.KEYMAX = KEYMAX;
 Serpent.KEYSTEP = KEYSTEP;
 
-Serpent.prototype.encrypt = function(plaintext, ciphertext) {
-	const _subkeys = this._subkeys;
-	const x = [
-		plaintext.get32(0, true),
-		plaintext.get32(1, true),
-		plaintext.get32(2, true),
-		plaintext.get32(3, true),
-	];
-	const y = new Array(4);
-	for (let i = 0; i < 31; i++) {
-		_keying(x, _subkeys[i]);
-		switch (i & 7) {
-		case 0: _sbox0(x, y); break;
-		case 1: _sbox1(x, y); break;
-		case 2: _sbox2(x, y); break;
-		case 3: _sbox3(x, y); break;
-		case 4: _sbox4(x, y); break;
-		case 5: _sbox5(x, y); break;
-		case 6: _sbox6(x, y); break;
-		case 7: _sbox7(x, y);
-		}
-		_transform(y, x);
-	}
-	_keying(x, _subkeys[31]);
-	_sbox7(x, y);
-	_keying(y, _subkeys[32]);
-	ciphertext.set32(0, y[0], true);
-	ciphertext.set32(1, y[1], true);
-	ciphertext.set32(2, y[2], true);
-	ciphertext.set32(3, y[3], true);
-}
-
-Serpent.prototype.decrypt = function(plaintext, ciphertext) {
-	const _subkeys = this._subkeys;
-	const x = [
-		ciphertext.get32(0, true),
-		ciphertext.get32(1, true),
-		ciphertext.get32(2, true),
-		ciphertext.get32(3, true),
-	];
-	const y = new Array(4);
-	_keying(x, _subkeys[32]);
-	_sbox7Inv(x, y);
-	_keying(y, _subkeys[31]);
-	for (let i = 30; i > -1; i--) {
-		_transformInv(y, x);
-		switch (i & 7) {
-		case 0: _sbox0Inv(x, y); break;
-		case 1: _sbox1Inv(x, y); break;
-		case 2: _sbox2Inv(x, y); break;
-		case 3: _sbox3Inv(x, y); break;
-		case 4: _sbox4Inv(x, y); break;
-		case 5: _sbox5Inv(x, y); break;
-		case 6: _sbox6Inv(x, y); break;
-		case 7: _sbox7Inv(x, y);
-		}
-		_keying(y, _subkeys[i]);
-	}
-	plaintext.set32(0, y[0], true);
-	plaintext.set32(1, y[1], true);
-	plaintext.set32(2, y[2], true);
-	plaintext.set32(3, y[3], true);
-}
-
-var PHI = 0x9e3779b9;
+const PHI = 0x9e3779b9;
 
 function _transform(x, y) {
 	const [x0, x1, x2, x3] = x;

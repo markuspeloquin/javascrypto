@@ -19,101 +19,101 @@ const Hmac = (() => {
 const IPAD = 0x36363636;
 const OPAD = 0x5c5c5c5c;
 
-/** Create a HMAC function
- * \param hashfn A hash function object
- */
-function Hmac(hashfn) {
-	this._fn = hashfn;
-	this._key = new ByteArray(hashfn.blockSize());
-}
-Hmac.prototype = {};
-Hmac.prototype.constructor = Hmac;
-
-/** Initialize the HMAC context
- * \param key	Key ByteArray
- */
-Hmac.prototype.init = function(key) {
-	const _fn = this._fn;
-	const _key = this._key;
-	const sz = key.size();
-
-	const szBlock = _fn.blockSize();
-	const szBlock32 = szBlock >>> 2;
-	const szDigest = _fn.digestSize();
-	const szDigest32 = szDigest >>> 2;
-
-	let end;
-	if (sz > szBlock) {
-		_fn.init();
-		_fn.update(key, sz);
-		const digest = _fn.end();
-		for (let i = 0; i < szDigest32; i++)
-			_key.set32(i, digest.get32(i));
-
-		end = szDigest;
-	} else {
-		const sz32 = sz >>> 2;
-		// copy full words
-		for (let i = 0; i < sz32; i++)
-			_key.set32(i, key.get32(i));
-		// copy partial
-		for (let i = sz32 << 2; i < sz; i++)
-			_key.set(i, key.get(i));
-
-		// zero a partial word
-		end = sz;
-		while (end & 3)
-			_key.set(end++, 0);
+class Hmac {
+	/** Create a HMAC function
+	 * \param hashfn A hash function object
+	 */
+	constructor(hashfn) {
+		this._fn = hashfn;
+		this._key = new ByteArray(hashfn.blockSize());
 	}
 
-	// zero the rest of the words
-	for (let i = end >>> 2; i < szBlock32; i++)
-		_key.set32(i, 0);
+	/** Initialize the HMAC context
+	 * \param key	Key ByteArray
+	 */
+	init(key) {
+		const _fn = this._fn;
+		const _key = this._key;
+		const sz = key.size();
 
-	const keyIpad = new ByteArray(szBlock);
-	for (let i = 0; i < szBlock32; i++)
-		keyIpad.set32(i, _key.get32(i) ^ IPAD);
+		const szBlock = _fn.blockSize();
+		const szBlock32 = szBlock >>> 2;
+		const szDigest = _fn.digestSize();
+		const szDigest32 = szDigest >>> 2;
 
-	_fn.init();
-	_fn.update(keyIpad, szBlock);
-}
+		let end;
+		if (sz > szBlock) {
+			_fn.init();
+			_fn.update(key, sz);
+			const digest = _fn.end();
+			for (let i = 0; i < szDigest32; i++)
+				_key.set32(i, digest.get32(i));
 
-/** Add data to the HMAC computation
- * \param buf	BE buffer
- * \param sz	Length of buffer in bytes
- */
-Hmac.prototype.update = function(buf, sz) {
-	this._fn.update(buf, sz);
-}
+			end = szDigest;
+		} else {
+			const sz32 = sz >>> 2;
+			// copy full words
+			for (let i = 0; i < sz32; i++)
+				_key.set32(i, key.get32(i));
+			// copy partial
+			for (let i = sz32 << 2; i < sz; i++)
+				_key.set(i, key.get(i));
 
-/** Return the result of the HMAC computation */
-Hmac.prototype.end = function() {
-	const _fn = this._fn;
-	const _key = this._key;
+			// zero a partial word
+			end = sz;
+			while (end & 3)
+				_key.set(end++, 0);
+		}
 
-	const szBlock = _fn.blockSize();
-	const szBlock32 = szBlock >> 2;
-	const szDigest = _fn.digestSize();
+		// zero the rest of the words
+		for (let i = end >>> 2; i < szBlock32; i++)
+			_key.set32(i, 0);
 
-	const keyOpad = new ByteArray(szBlock);
-	for (let i = 0; i < szBlock32; i++)
-		keyOpad.set32(i, _key.get32(i) ^ OPAD);
+		const keyIpad = new ByteArray(szBlock);
+		for (let i = 0; i < szBlock32; i++)
+			keyIpad.set32(i, _key.get32(i) ^ IPAD);
 
-	const midDigest = _fn.end();
-	_fn.init();
-	_fn.update(keyOpad, szBlock);
-	_fn.update(midDigest, szDigest);
-	return _fn.end();
-}
+		_fn.init();
+		_fn.update(keyIpad, szBlock);
+	}
 
-/** The block size of the hash function */
-Hmac.prototype.blockSize = function() {
-	return this._fn.blockSize();
-}
+	/** Add data to the HMAC computation
+	 * \param buf	BE buffer
+	 * \param sz	Length of buffer in bytes
+	 */
+	update(buf, sz) {
+		this._fn.update(buf, sz);
+	}
 
-/** The digest size of the hash function */
-Hmac.prototype.digestSize = function() {
-	return this._fn.digestSize();
+	/** Return the result of the HMAC computation */
+	end() {
+		const _fn = this._fn;
+		const _key = this._key;
+
+		const szBlock = _fn.blockSize();
+		const szBlock32 = szBlock >> 2;
+		const szDigest = _fn.digestSize();
+
+		const keyOpad = new ByteArray(szBlock);
+		for (let i = 0; i < szBlock32; i++)
+			keyOpad.set32(i, _key.get32(i) ^ OPAD);
+
+		const midDigest = _fn.end();
+		_fn.init();
+		_fn.update(keyOpad, szBlock);
+		_fn.update(midDigest, szDigest);
+		return _fn.end();
+	}
+
+	/** The block size of the hash function */
+	blockSize() {
+		return this._fn.blockSize();
+	}
+
+	/** The digest size of the hash function */
+	digestSize() {
+		return this._fn.digestSize();
+	}
 }
 
 return Hmac;

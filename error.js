@@ -14,72 +14,52 @@
 
 'use strict';
 
-const AssertionError = (() => {
-	function AssertionError(msg, cause) {
-		Error.call(this, msg);
+class AssertionError extends Error {
+	constructor(msg=null, cause=null) {
+		super(msg);
 
 		this.cause = cause;
 		this.message = msg;
 		this.name = 'AssertionError';
 	}
-	AssertionError.prototype = Object.create(Error.prototype);
-	AssertionError.prototype.constructor = AssertionError;
+}
 
-	return AssertionError;
-})();
-
-const EncodingError = (() => {
-	function EncodingError(msg, cause) {
-		Error.call(this, msg);
+class EncodingError extends Error {
+	constructor(msg=null, cause=null) {
+		super(msg);
 
 		this.cause = cause;
 		this.message = msg;
 		this.name = 'EncodingError';
 	}
-	EncodingError.prototype = Object.create(Error.prototype);
-	EncodingError.prototype.constructor = EncodingError;
+}
 
-	return EncodingError;
-})();
-
-const IndexError = (() => {
-	function IndexError(msg, cause) {
-		Error.call(this, msg);
+class IndexError extends Error {
+	constructor(msg=null, cause=null) {
+		super(msg);
 
 		this.cause = cause;
 		this.message = msg;
 		this.name = 'IndexError';
 	}
-	IndexError.prototype = Object.create(Error.prototype);
-	IndexError.prototype.constructor = IndexError;
+}
 
-	return IndexError;
-})();
-
-const RuntimeError = (() => {
-	function RuntimeError(msg, cause) {
-		Error.call(this, msg);
+class RuntimeError extends Error {
+	constructor(msg=null, cause=null) {
+		super(msg);
 
 		this.cause = cause;
 		this.message = msg;
 		this.name = 'RuntimeError';
 	}
-	RuntimeError.prototype = Object.create(Error.prototype);
-	RuntimeError.prototype.constructor = RuntimeError;
+}
 
-	return RuntimeError;
-})();
-
-const TypeError = (() => {
-	function TypeError(msg, cause) {
-		Error.call(this, msg);
+class TypeError extends Error {
+	constructor(msg=null, cause=null) {
+		super(msg);
 
 		this.cause = cause;
 		this.message = msg;
 		this.name = 'TypeError';
 	}
-	TypeError.prototype = Object.create(Error.prototype);
-	TypeError.prototype.constructor = TypeError;
-
-	return TypeError;
-})();
+}

@@ -14,35 +14,30 @@
 
 'use strict';
 
-const Cipher = (() => {
+class Cipher {
+	/** Abstract cipher class */
+	constructor(blockSize) {
+		this._blockSize = blockSize;
+	}
 
-/** Abstract cipher class */
-function Cipher(blockSize) {
-	this._blockSize = blockSize;
+	/** Encrypt a block of data
+	 * \param[in] plaintext		Data to encrypt
+	 * \param[out] ciphertext	Encrypted data
+	 */
+	encrypt(plaintext, ciphertext) {
+		throw 'Cipher.encrypt() not overloaded';
+	}
+
+	/** Decrypt a block of data
+	 * \param[in] ciphertext	Data to decrypt
+	 * \param[out] plaintext	Decrypted data
+	 */
+	decrypt(ciphertext, plaintext) {
+		throw 'Cipher.decrypt() not overloaded';
+	}
+
+	/** Get the block size */
+	blockSize () {
+		return this._blockSize;
+	}
 }
-Cipher.prototype = {};
-Cipher.prototype.constructor = Cipher;
-
-/** Encrypt a block of data
- * \param[in] plaintext		Data to encrypt
- * \param[out] ciphertext	Encrypted data
- */
-Cipher.prototype.encrypt = (plaintext, ciphertext) => {
-	throw 'Cipher.encrypt() not overloaded';
-}
-
-/** Decrypt a block of data
- * \param[in] ciphertext	Data to decrypt
- * \param[out] plaintext	Decrypted data
- */
-Cipher.prototype.decrypt = (ciphertext, plaintext) => {
-	throw 'Cipher.decrypt() not overloaded';
-}
-
-/** Get the block size */
-Cipher.prototype.blockSize = function() {
-	return this._blockSize;
-}
-
-return Cipher;
-})();

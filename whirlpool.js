@@ -19,146 +19,154 @@ const Whirlpool = (() => {
 const BLOCK = 64;
 const DIGEST = 64;
 
-function Whirlpool() {
-	Hash.call(this);
-	// hashing state
-	this._hash = new Uint32Array(16);
-	// number of hashed bits (uint16[])
-	this._bitCount = new Array(16);
-	// data to hash
-	this._buf = new DataView(new ArrayBuffer(BLOCK));
-	this._pos = null;
-}
-Whirlpool.prototype = Object.create(Hash.prototype);
-Whirlpool.prototype.constructor = Whirlpool;
+class Whirlpool extends Hash {
+	constructor() {
+		super();
+		// hashing state
+		this._hash = new Uint32Array(16);
+		// number of hashed bits (uint16[])
+		this._bitCount = new Array(16);
+		// data to hash
+		this._buf = new DataView(new ArrayBuffer(BLOCK));
+		this._pos = null;
+	}
 
-Whirlpool.BLOCK = BLOCK;
-Whirlpool.DIGEST = DIGEST;
+	digestSize() {
+		return DIGEST;
+	}
 
-Whirlpool.prototype.digestSize = () => DIGEST;
-Whirlpool.prototype.blockSize = () => BLOCK;
+	blockSize() {
+		return BLOCK;
+	}
 
-/** Initialize/reset a whirlpool context. */
-Whirlpool.prototype.init = function() {
-	this._hash.fill(0);
-	this._bitCount.fill(0);
-	// pos in buf
-	this._pos = 0;
-}
+	/** Initialize/reset a whirlpool context. */
+	init() {
+		this._hash.fill(0);
+		this._bitCount.fill(0);
+		// pos in buf
+		this._pos = 0;
+	}
 
-/** Add data to the computation.
- * \param buf	The data to be appended as a ByteArray
- * \param sz	Size of data in bytes
- */
-Whirlpool.prototype.update = function(buf, sz) {
-	// this function maintains the invariant: pos < WBLOCKBYTES
-	const _buf = this._buf;
-	const _hash = this._hash;
-	let _pos = this._pos;
+	/** Add data to the computation.
+	 * \param buf	The data to be appended as a ByteArray
+	 * \param sz	Size of data in bytes
+	 */
+	update(buf, sz) {
+		// this function maintains the invariant: pos < WBLOCKBYTES
+		const _buf = this._buf;
+		const _hash = this._hash;
+		let _pos = this._pos;
 
-	_incrementCount(this._bitCount, sz);
+		_incrementCount(this._bitCount, sz);
 
-	if (_pos + sz < BLOCK) {
-		// buffer will not fill
-		if ((_pos | sz) & 3) {
-			for (let i = 0; i < sz; i++)
+		if (_pos + sz < BLOCK) {
+			// buffer will not fill
+			if ((_pos | sz) & 3) {
+				for (let i = 0; i < sz; i++)
+					_buf.setUint8(_pos++, buf.get(i));
+			} else {
+				// both are aligned
+				const sz32 = sz >>> 2;
+				for (let i = 0; i < sz32; i++) {
+					_buf.setUint32(_pos, buf.get32(i),
+					    false);
+					_pos += 4;
+				}
+			}
+			this._pos = _pos;
+			return;
+		}
+
+		// do first (full) block
+		const bytes = BLOCK - _pos;
+		if ((_pos | bytes) & 3) {
+			for (let i = 0; i < bytes; i++)
 				_buf.setUint8(_pos++, buf.get(i));
 		} else {
 			// both are aligned
-			const sz32 = sz >>> 2;
-			for (let i = 0; i < sz32; i++) {
+			const bytes32 = bytes >>> 2;
+			for (let i = 0; i < bytes32; i++) {
 				_buf.setUint32(_pos, buf.get32(i), false);
 				_pos += 4;
 			}
 		}
-		this._pos = _pos;
-		return;
-	}
+		_processBuf(_buf, _hash);
+		let srcpos = bytes;
+		sz -= bytes;
 
-	// do first (full) block
-	const bytes = BLOCK - _pos;
-	if ((_pos | bytes) & 3) {
-		for (let i = 0; i < bytes; i++)
-			_buf.setUint8(_pos++, buf.get(i));
-	} else {
-		// both are aligned
-		const bytes32 = bytes >>> 2;
-		for (let i = 0; i < bytes32; i++) {
-			_buf.setUint32(_pos, buf.get32(i), false);
-			_pos += 4;
+		// do subsequent (full) blocks
+		while (sz >= BLOCK) {
+			if (srcpos & 3) {
+				for (let i = 0; i < BLOCK; i++)
+					_buf.setUint8(i, buf.get(srcpos++));
+			} else {
+				// both are aligned
+				let srcpos32 = srcpos >>> 2;
+				for (let i = 0; i < BLOCK; i += 4)
+					_buf.setUint32(i,
+					    buf.get32(srcpos32++), false);
+				srcpos = srcpos32 << 2;
+			}
+			_processBuf(_buf, _hash);
+			sz -= BLOCK;
 		}
-	}
-	_processBuf(_buf, _hash);
-	let srcpos = bytes;
-	sz -= bytes;
 
-	// do subsequent (full) blocks
-	while (sz >= BLOCK) {
-		if (srcpos & 3) {
-			for (let i = 0; i < BLOCK; i++)
+		// copy next partial block for later
+		if ((srcpos | sz) & 3) {
+			for (let i = 0; i < sz; i++)
 				_buf.setUint8(i, buf.get(srcpos++));
 		} else {
 			// both are aligned
 			let srcpos32 = srcpos >>> 2;
-			for (let i = 0; i < BLOCK; i += 4)
-				_buf.setUint32(i, buf.get32(srcpos32++), false);
+			for (let i = 0; i < sz; i += 4)
+				_buf.setUint32(i, buf.get32(srcpos32++),
+				    false);
 			srcpos = srcpos32 << 2;
 		}
-		_processBuf(_buf, _hash);
-		sz -= BLOCK;
+		this._pos = sz;
 	}
 
-	// copy next partial block for later
-	if ((srcpos | sz) & 3) {
-		for (let i = 0; i < sz; i++)
-			_buf.setUint8(i, buf.get(srcpos++));
-	} else {
-		// both are aligned
-		let srcpos32 = srcpos >>> 2;
-		for (let i = 0; i < sz; i += 4)
-			_buf.setUint32(i, buf.get32(srcpos32++), false);
-		srcpos = srcpos32 << 2;
-	}
-	this._pos = sz;
-}
+	/** Finish computation
+	 * \return The digest
+	 */
+	end() {
+		// this function uses the invariant: pos < WBLOCKBYTES
+		const _buf = this._buf;
+		const _hash = this._hash;
+		let _pos = this._pos;
 
-/** Finish computation
- * \return The digest
- */
-Whirlpool.prototype.end = function() {
-	// this function uses the invariant: pos < WBLOCKBYTES
-	const _buf = this._buf;
-	const _hash = this._hash;
-	let _pos = this._pos;
+		// append the bit pattern 100000...
+		_buf.setUint8(_pos++, 0x80);
 
-	// append the bit pattern 100000...
-	_buf.setUint8(_pos++, 0x80);
+		const posFooter = BLOCK - LENGTH_BYTES;
 
-	const posFooter = BLOCK - LENGTH_BYTES;
-
-	if (_pos > posFooter) {
-		// no room to fit the bit count; that will go in the next
-		// block; fill remainder with zeros
-		while (_pos < BLOCK)
+		if (_pos > posFooter) {
+			// no room to fit the bit count; that will go in the
+			// next block; fill remainder with zeros
+			while (_pos < BLOCK)
+				_buf.setUint8(_pos++, 0);
+			_processBuf(_buf, _hash);
+			_pos = 0;
+		}
+		// pad middle with zeros
+		while (_pos < posFooter)
 			_buf.setUint8(_pos++, 0);
+
+		_appendCount(this._bitCount, _buf, _pos);
+		this._pos = _pos = _buf.byteLength;
+
+		// process final data block
 		_processBuf(_buf, _hash);
-		_pos = 0;
+
+		// return digest
+		const res = new ByteArray(_hash.buffer);
+		res.swap32();
+		return res;
 	}
-	// pad middle with zeros
-	while (_pos < posFooter)
-		_buf.setUint8(_pos++, 0);
-
-	_appendCount(this._bitCount, _buf, _pos);
-	this._pos = _pos = _buf.byteLength;
-
-	// process final data block
-	_processBuf(_buf, _hash);
-
-	// return digest
-	const res = new ByteArray(_hash.buffer);
-	res.swap32();
-	return res;
 }
+
+Whirlpool.BLOCK = BLOCK;
+Whirlpool.DIGEST = DIGEST;
 
 const C_0 = [
 	0x18186018,0xc07830d8,0x23238c23,0x05af4626,

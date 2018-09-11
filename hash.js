@@ -14,42 +14,37 @@
 
 'use strict';
 
-const Hash = (() => {
+/** Abstract Hash class. */
+class Hash {
+	constructor() {}
 
-/** Abstract Hash function */
-function Hash() {}
-Hash.prototype = {};
-Hash.prototype.constructor = Hash;
+	/** Initialize the hash function */
+	init() {
+		throw 'Hash.init() not overloaded';
+	}
 
-/** Initialize the hash function */
-Hash.prototype.init = () => {
-	throw 'Hash.init() not overloaded';
+	/** Add data to the computation
+	 * \param buf	The data
+	 * \param sz	The size of buf in bytes
+	 */
+	update(buf, sz) {
+		throw 'Hash.update() not overloaded';
+	}
+
+	/** End the hash computation
+	 * \return	The digest
+	 */
+	end() {
+		throw 'Hash.update() not overloaded';
+	}
+
+	/** Get the size of the digest in bytes */
+	digestSize() {
+		throw 'Hash.digestSize not overloaded';
+	}
+
+	/** Get the size of the blocks in bytes */
+	blockSize() {
+		throw 'Hash.blockSize not overloaded';
+	}
 }
-
-/** Add data to the computation
- * \param buf	The data
- * \param sz	The size of buf in bytes
- */
-Hash.prototype.update = (buf, sz) => {
-	throw 'Hash.update() not overloaded';
-}
-
-/** End the hash computation
- * \return	The digest
- */
-Hash.prototype.end = () => {
-	throw 'Hash.update() not overloaded';
-}
-
-/** Get the size of the digest in bytes */
-Hash.prototype.digestSize = () => {
-	throw 'Hash.digestSize() not overloaded';
-}
-
-/** Get the size of the blocks in bytes */
-Hash.prototype.blockSize = () => {
-	throw 'Hash.blockSize() not overloaded';
-}
-
-return Hash;
-})();
