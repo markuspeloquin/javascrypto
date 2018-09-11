@@ -251,10 +251,10 @@ class Long {
 	/** Return NOT of a Long */
 	not() {
 		let [n0, n1, n2, n3] = this._n;
-		n0 = ~n0 & 0xffff;
-		n1 = ~n1 & 0xffff;
-		n2 = ~n2 & 0xffff;
-		n3 = ~n3 & 0xffff;
+		n0 ^= 0xffff;
+		n1 ^= 0xffff;
+		n2 ^= 0xffff;
+		n3 ^= 0xffff;
 		const out = new Long;
 		out._n = [n0, n1, n2, n3];
 		return out;
